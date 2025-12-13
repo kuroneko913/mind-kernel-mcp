@@ -1,0 +1,66 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  mind-kernel-mcp
+  
+  Serverless Mind Kernel MCP Server backed by DynamoDB and GitHub.
+
+Parameters:
+  GitHubToken:
+    Type: String
+    Description: GitHub Personal Access Token
+    NoEcho: true
+  RepoOwner:
+    Type: String
+    Description: Repository Owner
+    Default: mind-kernel
+  RepoName:
+    Type: String
+    Description: Repository Name
+    Default: mind-kernel
+  McpApiKey:
+    Type: String
+    Description: API Key for MCP Authentication
+    NoEcho: true
+
+Resources:
+  # DynamoDB Table for User Secrets (userId -> githubToken)
+  UserSecrets:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: UserSecrets
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+  # Lambda Function
+  MindKernelFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      DockerTag: prod
+      DockerContext: .
+      Dockerfile: Dockerfile
+    Properties:
+      PackageType: Image
+      Architectures:
+        - arm64
+      MemorySize: 256
+      Timeout: 180 # Longer timeout for SSE
+      Environment:
+        Variables:
+          GITHUB_TOKEN: !Ref GitHubToken
+          REPO_OWNER: !Ref RepoOwner
+          REPO_NAME: !Ref RepoName
+          DYNAMODB_TABLE_NAME: !Ref UserSecrets
+          AWS_LWA_INVOKE_MODE: response_stream
+          MCP_API_KEY: !Ref McpApiKey
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UserSecrets
+      FunctionUrlConfig:
+        AuthType: NONE # For easiest access (or AWS_IAM if client supports it)
+        InvokeMode: RESPONSE_STREAM

@@ -4,58 +4,63 @@ from mcp.server.stdio import stdio_server
 import mcp.types as types
 from typing import Any, List, Union
 
-from .services import DynamoDBSecretStore, GitHubContentProvider
+from mind_kernel_mcp.tools import TOOL_DEFINITION, execute_fetch_tool, UPDATE_TOOL_DEFINITION, execute_update_tool
 
 app = Server("mind-kernel-mcp")
 
 @app.list_tools()
 async def list_tools() -> List[types.Tool]:
+    # Adapt dict definition to mcp.types.Tool
     return [
         types.Tool(
-            name="fetch_mind_kernel_core",
-            description="プライベートなMind Kernelリポジトリから core.json ファイルを取得します。",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "userId": {
-                        "type": "string",
-                        "description": "認証情報を取得するためのユーザーID。"
-                    }
-                },
-                "required": ["userId"]
-            }
+            name=TOOL_DEFINITION["name"],
+            description=TOOL_DEFINITION["description"],
+            inputSchema=TOOL_DEFINITION["inputSchema"]
+        ),
+        types.Tool(
+            name=UPDATE_TOOL_DEFINITION["name"],
+            description=UPDATE_TOOL_DEFINITION["description"],
+            inputSchema=UPDATE_TOOL_DEFINITION["inputSchema"]
         )
     ]
 
 @app.call_tool()
 async def call_tool(name: str, arguments: Any) -> List[Union[TextContent, ImageContent, EmbeddedResource]]:
-    if name == "fetch_mind_kernel_core":
-        user_id = arguments.get("userId")
-        if not user_id:
-            raise ValueError("userId は必須です")
-
+    if name == TOOL_DEFINITION["name"]:
         try:
-            secret_store = DynamoDBSecretStore()
-            token = secret_store.get_github_token(user_id)
-            
-            content_provider = GitHubContentProvider(token)
-            core_json_content = content_provider.fetch_core_json()
-            
+            content = execute_fetch_tool(arguments)
             return [
                 TextContent(
                     type="text",
-                    text=core_json_content
+                    text=content
                 )
             ]
         except Exception as e:
             return [
                 TextContent(
                     type="text",
-                    text=f"core.json の取得中にエラーが発生しました: {str(e)}"
+                    text=f"Error executing tool: {str(e)}"
+                )
+            ]
+            
+    elif name == UPDATE_TOOL_DEFINITION["name"]:
+        try:
+            content = execute_update_tool(arguments)
+            return [
+                TextContent(
+                    type="text",
+                    text=content
+                )
+            ]
+        except Exception as e:
+            return [
+                TextContent(
+                    type="text",
+                    text=f"Error executing tool: {str(e)}"
                 )
             ]
 
-    raise ValueError(f"不明なツールです: {name}")
+    raise ValueError(f"Unknown tool: {name}")
 
 async def run():
     async with stdio_server() as (read, write):

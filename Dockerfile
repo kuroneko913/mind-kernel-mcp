@@ -1,16 +1,22 @@
-FROM public.ecr.aws/lambda/python:3.12
+FROM python:3.12-slim
 
-# Install git and curl
-RUN dnf install -y git && dnf clean all
+# 2. Set working directory
+WORKDIR /app
 
-# Copy project files
-COPY pyproject.toml README.md ${LAMBDA_TASK_ROOT}/
-COPY mind_kernel_mcp ${LAMBDA_TASK_ROOT}/mind_kernel_mcp
-COPY scripts ${LAMBDA_TASK_ROOT}/scripts
+# 3. Install system dependencies (git, curl)
+RUN apt-get update && apt-get install -y git curl && apt-get clean
 
-# Install dependencies
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -e .[dev]
+# 4. Copy AWS Lambda Web Adapter
+# Multi-arch image (0.9.1) automatically provides arm64 binary on M1 Mac
+COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:0.9.1 /lambda-adapter /opt/extensions/lambda-adapter
 
-# Default command (optional, can be overridden)
-CMD [ "mind_kernel_mcp.lambda_handler.lambda_handler" ]
+# 4. Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 5. Copy Application Code
+COPY . .
+RUN pip install --no-cache-dir -e .[dev]
+
+# 6. Run uvicorn
+CMD ["uvicorn", "mind_kernel_mcp.sse:app", "--host", "0.0.0.0", "--port", "8080"]

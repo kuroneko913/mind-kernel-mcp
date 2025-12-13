@@ -1,0 +1,140 @@
+# -*- coding: utf-8 -*-
+"""Tests for GitHubContentProvider.
+
+These tests mock external HTTP calls to the GitHub API using ``unittest.mock``.
+The goal is to verify the behavior of the provider without making real network requests.
+"""
+
+import base64
+import json
+
+import pytest
+from unittest.mock import patch, MagicMock
+
+from mind_kernel_mcp.services.github_service import GitHubContentProvider
+
+# Helper to create a mock response object
+def make_response(status_code: int, json_data=None):
+    mock_resp = MagicMock()
+    mock_resp.status_code = status_code
+    mock_resp.json.return_value = json_data or {}
+    mock_resp.raise_for_status.side_effect = None if status_code < 400 else Exception()
+    return mock_resp
+
+@pytest.fixture(autouse=True)
+def set_env(monkeypatch):
+    monkeypatch.setenv("REPO_OWNER", "testowner")
+    monkeypatch.setenv("REPO_NAME", "testrepo")
+    return
+
+@pytest.fixture
+def provider():
+    return GitHubContentProvider(token="dummy-token")
+
+def test_fetch_file_success(provider):
+    content_str = "{\"key\": \"value\"}"
+    encoded = base64.b64encode(content_str.encode()).decode()
+    mock_json = {"content": encoded}
+    with patch("requests.get", return_value=make_response(200, mock_json)) as mock_get:
+        result = provider.fetch_file("some/path.json")
+        mock_get.assert_called_once()
+        assert result == content_str
+
+def test_fetch_file_not_found(provider):
+    with patch("requests.get", return_value=make_response(404)) as mock_get:
+        with pytest.raises(FileNotFoundError):
+            provider.fetch_file("missing.json")
+        mock_get.assert_called_once()
+
+def test_update_file_create_new(provider):
+    # Simulate get returning 404 (file does not exist yet)
+    get_resp = make_response(404)
+    put_resp = make_response(201, {"content": {"sha": "newsha"}})
+    with patch("requests.get", return_value=get_resp) as mock_get, \
+         patch("requests.put", return_value=put_resp) as mock_put:
+        result = provider.update_file("new.json", "{}", "add new file")
+        assert result == {"content": {"sha": "newsha"}}
+        mock_get.assert_called_once()
+        mock_put.assert_called_once()
+
+def test_update_file_existing(provider):
+    # Simulate existing file with SHA
+    get_resp = make_response(200, {"sha": "oldsha"})
+    put_resp = make_response(200, {"content": {"sha": "newsha"}})
+    with patch("requests.get", return_value=get_resp) as mock_get, \
+         patch("requests.put", return_value=put_resp) as mock_put:
+        result = provider.update_file("existing.json", "{}", "update file")
+        assert result == {"content": {"sha": "newsha"}}
+        # Ensure the SHA was sent in the payload
+        args, kwargs = mock_put.call_args
+        sent_json = kwargs.get("json", {})
+        assert sent_json.get("sha") == "oldsha"
+        mock_get.assert_called_once()
+        mock_put.assert_called_once()
+
+def test_insert_change_log_entry_with_unreleased(provider):
+    current = "# Changelog\n\n## [Unreleased]\n\n- Some change"
+    entry = "- New entry"
+    new_log = provider._insert_change_log_entry(current, entry)
+    # The new entry should appear directly after the Unreleased header
+    expected = "# Changelog\n\n## [Unreleased]\n\n- New entry\n\n- Some change"
+    assert new_log.strip() == expected.strip()
+
+def test_insert_change_log_entry_without_unreleased(provider):
+    current = "# Changelog\n\n- Old entry"
+    entry = "- New entry"
+    new_log = provider._insert_change_log_entry(current, entry)
+    expected = "# Changelog\n\n- Old entry\n\n- New entry"
+    assert new_log.strip() == expected.strip()
+
+def test_prepare_new_content_with_json_patch(provider):
+    original = {"a": 1, "b": 2}
+    patch_ops = [{"op": "replace", "path": "/b", "value": 3}]
+    # Mock fetch_file to return the original JSON string
+    with patch.object(provider, "fetch_file", return_value=json.dumps(original)):
+        result = provider._prepare_new_content("file.json", None, patch_ops, "branch")
+        expected = json.dumps({"a": 1, "b": 3}, indent=2, ensure_ascii=False)
+        assert result == expected
+
+def test_prepare_new_content_direct_content(provider):
+    content = "{\"key\": \"value\"}"
+    result = provider._prepare_new_content("file.json", content, None, "branch")
+    assert result == content
+
+def test_validate_update_params_success(provider):
+    # Should not raise
+    provider._validate_update_params("msg", None, "content")
+    provider._validate_update_params("msg", [{"op": "add", "path": "/c", "value": 4}], None)
+
+def test_validate_update_params_missing_message(provider):
+    with pytest.raises(ValueError, match="commitMessage is required"):
+        provider._validate_update_params("", None, "content")
+
+def test_validate_update_params_missing_content_and_patch(provider):
+    with pytest.raises(ValueError, match="Either content or json_patch must be provided"):
+        provider._validate_update_params("msg", None, None)
+
+def test_propose_update_flow(provider):
+    # Patch internal helper methods to avoid network calls and focus on flow
+    with patch.object(provider, "_create_work_branch", return_value=("test-branch", "main")) as mock_branch, \
+         patch.object(provider, "_prepare_new_content", return_value="new content") as mock_prepare, \
+         patch.object(provider, "_validate_update_params") as mock_validate, \
+         patch.object(provider, "_update_target_file") as mock_update_target, \
+         patch.object(provider, "_update_change_log") as mock_update_log, \
+         patch.object(provider, "_update_summary") as mock_update_summary, \
+         patch.object(provider, "_create_pr", return_value={"html_url": "http://github.com/pr/1"}) as mock_create_pr:
+        result = provider.propose_update(
+            path="core.json",
+            commit_message="test commit",
+            content="new content",
+            change_log_entry="- added",
+            update_summary_content="summary"
+        )
+        assert result == {"html_url": "http://github.com/pr/1"}
+        mock_branch.assert_called_once_with("core.json")
+        mock_prepare.assert_called_once_with("core.json", "new content", None, "test-branch")
+        mock_validate.assert_called_once()
+        mock_update_target.assert_called_once()
+        mock_update_log.assert_called_once()
+        mock_update_summary.assert_called_once()
+        mock_create_pr.assert_called_once()

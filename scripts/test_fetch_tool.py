@@ -14,7 +14,7 @@ async def run():
         args=["-m", "mind_kernel_mcp.bridge"],
         env=dict(os.environ) # Inherit env vars (AWS credentials etc)
     )
-
+    
     try:
         async with stdio_client(server_params) as (read, write):
             async with ClientSession(read, write) as session:
@@ -37,7 +37,7 @@ async def run():
                 if not user_id:
                     print("Error: USER_ID not provided via argument or environment variable.", file=sys.stderr)
                     sys.exit(1)
-
+                
                 # Call tool
                 print(f"Calling fetch_mind_kernel_file with userId='{user_id}'...", file=sys.stderr)
                 result = await session.call_tool("fetch_mind_kernel_file", arguments={"userId": user_id})

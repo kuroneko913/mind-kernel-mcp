@@ -1,0 +1,7 @@
+mcp
+boto3
+requests
+starlette
+mangum
+uvicorn
+jsonpatch
