@@ -27,7 +27,14 @@ async def run():
                     print("Error: update_mind_kernel_file not found!", file=sys.stderr)
                     sys.exit(1)
                 
-                user_id = "3f3e6963-3269-450f-9029-7d08ba569b76" # Seeded user
+                # Use environment variable or CLI argument for user ID
+                user_id = os.getenv("TEST_USER_ID")
+                if len(sys.argv) > 1:
+                    user_id = sys.argv[1]
+                
+                if not user_id:
+                    print("Error: TEST_USER_ID env var or command line argument is required.", file=sys.stderr)
+                    sys.exit(1)
                 
                 # Test Case: Propose update with change log and update summary
                 print(f"Calling update_mind_kernel_file with userId='{user_id}'...", file=sys.stderr)
