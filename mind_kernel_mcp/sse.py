@@ -7,7 +7,9 @@ from starlette.responses import JSONResponse, Response
 from sse_starlette.sse import EventSourceResponse
 from mangum import Mangum
 
-from mind_kernel_mcp.tools import TOOL_DEFINITION, FILTER_TOOL_NAME, execute_fetch_tool, UPDATE_TOOL_DEFINITION, UPDATE_TOOL_NAME, execute_update_tool
+from mind_kernel_mcp.tools import (
+    PUBLIC_TOOL_DEFINITIONS, TOOL_EXECUTORS
+)
 
 async def handle_sse(request: Request):
     """
@@ -68,17 +70,15 @@ async def handle_rpc(request: Request):
 
         elif method == "tools/list":
             response_data["result"] = {
-                "tools": [TOOL_DEFINITION, UPDATE_TOOL_DEFINITION]
+                "tools": PUBLIC_TOOL_DEFINITIONS
             }
 
         elif method == "tools/call":
             name = params.get("name")
             args = params.get("arguments", {})
             
-            if name == FILTER_TOOL_NAME:
-                content = execute_fetch_tool(args)
-            elif name == UPDATE_TOOL_NAME:
-                content = execute_update_tool(args)
+            if name in TOOL_EXECUTORS:
+                content = TOOL_EXECUTORS[name](args)
             else:
                  raise ValueError(f"Unknown tool: {name}")
             
