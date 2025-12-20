@@ -26,8 +26,8 @@ async def run():
                 tool_names = [t.name for t in tools.tools]
                 print(f"Tools found: {tool_names}", file=sys.stderr)
                 
-                if "fetch_mind_kernel_file" not in tool_names:
-                    print("Error: fetch_mind_kernel_file not found!", file=sys.stderr)
+                if "fetch_mind_kernel_identity" not in tool_names:
+                    print("Error: fetch_mind_kernel_identity not found!", file=sys.stderr)
                     sys.exit(1)
                 
                 # Determine user_id
@@ -39,8 +39,8 @@ async def run():
                     sys.exit(1)
 
                 # Call tool
-                print(f"Calling fetch_mind_kernel_file with userId='{user_id}'...", file=sys.stderr)
-                result = await session.call_tool("fetch_mind_kernel_file", arguments={"userId": user_id})
+                print(f"Calling fetch_mind_kernel_identity with userId='{user_id}'...", file=sys.stderr)
+                result = await session.call_tool("fetch_mind_kernel_identity", arguments={"userId": user_id})
                 
                 # Output result
                 if result.content and len(result.content) > 0:

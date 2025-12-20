@@ -11,7 +11,7 @@ from typing import Any, List, Union
 from mcp.types import TextContent, ImageContent, EmbeddedResource
 
 # Import tools dynamically
-from mind_kernel_mcp.tools import TOOL_DEFINITION, UPDATE_TOOL_DEFINITION
+from mind_kernel_mcp.tools import PUBLIC_TOOL_DEFINITIONS
 
 app = Server("mind-kernel-mcp-bridge")
 
@@ -31,18 +31,16 @@ lambda_client = boto3.client(
 
 @app.list_tools()
 async def list_tools() -> List[types.Tool]:
-    return [
-        types.Tool(
-            name=TOOL_DEFINITION["name"],
-            description=TOOL_DEFINITION["description"],
-            inputSchema=TOOL_DEFINITION["inputSchema"]
-        ),
-        types.Tool(
-            name=UPDATE_TOOL_DEFINITION["name"],
-            description=UPDATE_TOOL_DEFINITION["description"],
-            inputSchema=UPDATE_TOOL_DEFINITION["inputSchema"]
+    tools = []
+    for tool_def in PUBLIC_TOOL_DEFINITIONS:
+        tools.append(
+            types.Tool(
+                name=tool_def["name"],
+                description=tool_def["description"],
+                inputSchema=tool_def["inputSchema"]
+            )
         )
-    ]
+    return tools
 
 @app.call_tool()
 async def call_tool(name: str, arguments: Any) -> List[Union[TextContent, ImageContent, EmbeddedResource]]:

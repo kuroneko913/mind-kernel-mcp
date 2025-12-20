@@ -23,21 +23,21 @@ async def run():
                 tool_names = [t.name for t in tools.tools]
                 print(f"Tools found: {tool_names}", file=sys.stderr)
                 
-                if "update_mind_kernel_file" not in tool_names:
-                    print("Error: update_mind_kernel_file not found!", file=sys.stderr)
+                if "update_mind_kernel_identity" not in tool_names:
+                    print("Error: update_mind_kernel_identity not found!", file=sys.stderr)
                     sys.exit(1)
                 
                 # Use environment variable or CLI argument for user ID
-                user_id = os.getenv("TEST_USER_ID")
+                user_id = os.getenv("USER_ID")
                 if len(sys.argv) > 1:
                     user_id = sys.argv[1]
                 
                 if not user_id:
-                    print("Error: TEST_USER_ID env var or command line argument is required.", file=sys.stderr)
+                    print("Error: USER_ID env var or command line argument is required.", file=sys.stderr)
                     sys.exit(1)
                 
                 # Test Case: Propose update with change log and update summary
-                print(f"Calling update_mind_kernel_file with userId='{user_id}'...", file=sys.stderr)
+                print(f"Calling update_mind_kernel_identity with userId='{user_id}'...", file=sys.stderr)
                 arguments = {
                     "userId": user_id,
                     "version": "v1.2.3",
@@ -60,7 +60,7 @@ async def run():
                 # However, if using real token, it would work.
                 
                 try:
-                    result = await session.call_tool("update_mind_kernel_file", arguments=arguments)
+                    result = await session.call_tool("update_mind_kernel_identity", arguments=arguments)
                     
                     if result.content and len(result.content) > 0:
                         print("\n--- Result Content ---")
