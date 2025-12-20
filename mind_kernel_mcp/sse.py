@@ -26,6 +26,16 @@ def verify_token(request: Request):
     Returns the user ID (sub) if valid, or None if invalid/missing.
     """
     auth_header = request.headers.get("Authorization")
+    api_key_header = request.headers.get("X-API-Key")
+    env_api_key = os.environ.get("MCP_API_KEY")
+
+    # 1. API Key Auth (Simpler, for local tools)
+    if env_api_key and api_key_header == env_api_key:
+        print("DEBUG: Authenticated via X-API-Key")
+        # Use a fixed debug user ID for API Key access
+        return os.environ.get("LOCAL_USER_ID")
+    
+    # 2. JWT Auth (Cognito)
     if not auth_header or not auth_header.startswith("Bearer "):
         return None
     

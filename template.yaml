@@ -14,6 +14,13 @@ Parameters:
     Type: String
     Description: Repository Name
     Default: mind-kernel
+  McpApiKey:
+    Type: String
+    Description: API Key for MCP Authentication
+    NoEcho: true
+  LocalUserId:
+    Type: String
+    Description: User ID to use when authenticating with API Key (e.g. for local dev)
 
 Resources:
   # DynamoDB Table for User Secrets (userId -> githubToken)
@@ -100,6 +107,8 @@ Resources:
           REPO_NAME: !Ref RepoName
           DYNAMODB_TABLE_NAME: !Ref UserSecrets
           AWS_LWA_INVOKE_MODE: response_stream
+          MCP_API_KEY: !Ref McpApiKey
+          LOCAL_USER_ID: !Ref LocalUserId
           COGNITO_USER_POOL_ID: !Ref MindKernelUserPool
       Policies:
         - DynamoDBCrudPolicy:
