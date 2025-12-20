@@ -25,8 +25,7 @@ def test_execute_update_generic_tool_success(MockStore, MockProvider):
         "jsonPatch": [{"op": "replace", "path": "/foo", "value": "bar"}],
         "commitMessage": "test commit",
         "changeLogEntry": "my changelog",
-        "prBody": "my pr body",
-        "updateSummary": {"foo": "bar"}
+        "prBody": "my pr body"
     }
     result = execute_update_generic_tool(args)
 
@@ -40,8 +39,7 @@ def test_execute_update_generic_tool_success(MockStore, MockProvider):
         content=None,
         json_patch=[{"op": "replace", "path": "/foo", "value": "bar"}],
         change_log_entry="my changelog",
-        pr_body="my pr body",
-        update_summary_content=json.dumps({"foo": "bar"}, ensure_ascii=False, indent=4)
+        pr_body="my pr body"
     )
 
 def test_execute_update_generic_tool_validation():

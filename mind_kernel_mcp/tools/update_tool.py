@@ -39,13 +39,9 @@ UPDATE_GENERIC_TOOL_DEFINITION = {
             "prBody": {
                 "type": "string",
                 "description": "Optional PR body; if omitted a default description will be generated."
-            },
-            "updateSummary": {
-                "type": "object",
-                "description": "Optional JSON summary; if omitted a default summary containing the version will be generated."
             }
         },
-        "required": ["userId", "filePath", "version", "jsonPatch", "commitMessage"]
+        "required": ["userId", "version", "jsonPatch", "commitMessage"]
     }
 }
 
@@ -62,7 +58,6 @@ def _execute_update_logic(arguments: dict[str, Any], file_path: str = None) -> s
     commit_message = arguments.get("commitMessage")
     change_log_entry = arguments.get("changeLogEntry")
     pr_body = arguments.get("prBody")
-    update_summary = arguments.get("updateSummary")
 
     if not user_id:
         raise ValueError("userId is required")
@@ -83,10 +78,6 @@ def _execute_update_logic(arguments: dict[str, Any], file_path: str = None) -> s
     if not pr_body:
         pr_body = f"Update {file_path} to version {version}."
 
-    # Auto-generate update summary if not supplied
-    if not update_summary:
-        update_summary = {"version": version}
-
     secret_store = DynamoDBSecretStore()
     token = secret_store.get_github_token(user_id)
     
@@ -97,8 +88,7 @@ def _execute_update_logic(arguments: dict[str, Any], file_path: str = None) -> s
         content=None, 
         json_patch=json_patch,
         change_log_entry=change_log_entry,
-        pr_body=pr_body,
-        update_summary_content=json.dumps(update_summary, ensure_ascii=False, indent=4)
+        pr_body=pr_body
     )
     
     pr_url = result.get("html_url", "URL unknown")
@@ -125,8 +115,7 @@ def _create_update_facade_definition(key: str, config: dict) -> dict:
                 "jsonPatch": { "type": "array", "items": { "type": "object" }, "description": "JSON Patch operations." },
                 "commitMessage": { "type": "string", "description": "Commit message for the Pull Request." },
                 "changeLogEntry": { "type": "string", "description": "Optional ChangeLogs.md entry." },
-                "prBody": { "type": "string", "description": "Optional PR body." },
-                "updateSummary": { "type": "object", "description": "Optional JSON summary." }
+                "prBody": { "type": "string", "description": "Optional PR body." }
             },
             "required": ["userId", "version", "jsonPatch", "commitMessage"]
         }

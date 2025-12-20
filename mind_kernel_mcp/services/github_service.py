@@ -176,12 +176,6 @@ class GitHubContentProvider(ContentProvider):
         new_logs = self._insert_change_log_entry(current_logs, change_log_entry)
         self.update_file(log_path, new_logs, f"Update {log_path} for {commit_message}", branch=branch_name)
 
-    def _update_summary(self, update_summary_content: str, branch_name: str):
-        """Creates or updates an update summary file."""
-        today = datetime.now().strftime("%Y-%m-%d")
-        summary_path = f"update_summary/update_summary_{today}.json"
-        self.update_file(summary_path, update_summary_content, f"Add update summary for {today}", branch=branch_name)
-
     def _create_pr(self, path: str, commit_message: str, pr_body: Optional[str], branch_name: str, default_branch: str) -> dict:
         """Creates a pull request for the changes."""
         body = pr_body if pr_body else f"Automated update for {path} via Mind Kernel MCP.\n\nCommit Message: {commit_message}"
@@ -205,7 +199,7 @@ class GitHubContentProvider(ContentProvider):
         if not (json_patch or content):
             raise ValueError("Either content or json_patch must be provided.")
 
-    def propose_update(self, path: str, commit_message: str, content: Optional[str] = None, json_patch: Optional[List[dict]] = None, change_log_entry: Optional[str] = None, pr_body: Optional[str] = None, update_summary_content: Optional[str] = None) -> dict:
+    def propose_update(self, path: str, commit_message: str, content: Optional[str] = None, json_patch: Optional[List[dict]] = None, change_log_entry: Optional[str] = None, pr_body: Optional[str] = None) -> dict:
         # 1. 作業用ブランチの作成
         branch_name, default_branch = self._create_work_branch(path)
 
@@ -218,13 +212,10 @@ class GitHubContentProvider(ContentProvider):
         # 4. ファイルを更新 (新しいブランチで)
         self._update_target_file(path, new_content_str, commit_message, branch_name)
 
-        # 4. ChangeLogs.md の更新 (指定がある場合)
+        # 5. ChangeLogs.md の更新 (指定がある場合)
         if change_log_entry:
             self._update_change_log(change_log_entry, commit_message, branch_name)
 
-        # 5. Update Summary の更新 (指定がある場合)
-        if update_summary_content:
-            self._update_summary(update_summary_content, branch_name)
-        #6. Pull Requestの作成
+        # 6. Pull Requestの作成
         pr = self._create_pr(path, commit_message, pr_body, branch_name, default_branch)
         return pr
