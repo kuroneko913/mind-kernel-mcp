@@ -10,16 +10,12 @@ FETCH_GENERIC_TOOL_DEFINITION = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "userId": {
-                "type": "string",
-                "description": "User ID for authentication."
-            },
             "filePath": {
                 "type": "string",
                 "description": "Path to the file to fetch."
             }
         },
-        "required": ["userId", "filePath"]
+        "required": ["filePath"]
     }
 }
 
@@ -53,13 +49,8 @@ def _create_fetch_facade_definition(key: str, config: dict) -> dict:
         "description": description,
         "inputSchema": {
             "type": "object",
-            "properties": {
-                "userId": {
-                    "type": "string",
-                    "description": "User ID for authentication."
-                }
-            },
-            "required": ["userId"]
+            "properties": {},
+            "required": []
         }
     }
 

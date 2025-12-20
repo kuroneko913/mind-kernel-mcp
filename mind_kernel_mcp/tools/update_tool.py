@@ -11,10 +11,6 @@ UPDATE_GENERIC_TOOL_DEFINITION = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "userId": {
-                "type": "string",
-                "description": "User ID for authentication."
-            },
             "filePath": {
                 "type": "string",
                 "description": "Path to the file to update."
@@ -41,7 +37,7 @@ UPDATE_GENERIC_TOOL_DEFINITION = {
                 "description": "Optional PR body; if omitted a default description will be generated."
             }
         },
-        "required": ["userId", "version", "jsonPatch", "commitMessage"]
+        "required": ["version", "jsonPatch", "commitMessage"]
     }
 }
 
@@ -110,14 +106,13 @@ def _create_update_facade_definition(key: str, config: dict) -> dict:
         "inputSchema": {
             "type": "object",
             "properties": {
-                "userId": { "type": "string", "description": "User ID for authentication." },
                 "version": { "type": "string", "description": "Version identifier to set (e.g., 'v1.2.3')." },
                 "jsonPatch": { "type": "array", "items": { "type": "object" }, "description": "JSON Patch operations." },
                 "commitMessage": { "type": "string", "description": "Commit message for the Pull Request." },
                 "changeLogEntry": { "type": "string", "description": "Optional ChangeLogs.md entry." },
                 "prBody": { "type": "string", "description": "Optional PR body." }
             },
-            "required": ["userId", "version", "jsonPatch", "commitMessage"]
+            "required": ["version", "jsonPatch", "commitMessage"]
         }
     }
 

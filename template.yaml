@@ -6,10 +6,6 @@ Description: >
   Serverless Mind Kernel MCP Server backed by DynamoDB and GitHub.
 
 Parameters:
-  GitHubToken:
-    Type: String
-    Description: GitHub Personal Access Token
-    NoEcho: true
   RepoOwner:
     Type: String
     Description: Repository Owner
@@ -18,10 +14,6 @@ Parameters:
     Type: String
     Description: Repository Name
     Default: mind-kernel
-  McpApiKey:
-    Type: String
-    Description: API Key for MCP Authentication
-    NoEcho: true
 
 Resources:
   # DynamoDB Table for User Secrets (userId -> githubToken)
@@ -37,6 +29,55 @@ Resources:
           KeyType: HASH
       BillingMode: PAY_PER_REQUEST
 
+  # Cognito User Pool
+  MindKernelUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub ${AWS::StackName}-user-pool
+      AutoVerifiedAttributes:
+        - email
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Required: true
+          Mutable: true
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+          RequireUppercase: true
+
+  # Cognito User Pool Client
+  MindKernelUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub ${AWS::StackName}-client
+      UserPoolId: !Ref MindKernelUserPool
+      GenerateSecret: true
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - profile
+      CallbackURLs:
+        - https://chatgpt.com/connector_platform_oauth_redirect
+        - https://platform.openai.com/apps-manage/oauth
+      LogoutURLs:
+        - https://chatgpt.com
+      SupportedIdentityProviders:
+        - COGNITO
+
+  # Cognito User Pool Domain
+  MindKernelUserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Sub mind-kernel-mcp-${AWS::AccountId}
+      UserPoolId: !Ref MindKernelUserPool
+
   # Lambda Function
   MindKernelFunction:
     Type: AWS::Serverless::Function
@@ -50,17 +91,30 @@ Resources:
         - arm64
       MemorySize: 256
       Timeout: 180 # Longer timeout for SSE
+      FunctionUrlConfig:
+        AuthType: NONE
+        InvokeMode: RESPONSE_STREAM
       Environment:
         Variables:
-          GITHUB_TOKEN: !Ref GitHubToken
           REPO_OWNER: !Ref RepoOwner
           REPO_NAME: !Ref RepoName
           DYNAMODB_TABLE_NAME: !Ref UserSecrets
           AWS_LWA_INVOKE_MODE: response_stream
-          MCP_API_KEY: !Ref McpApiKey
+          COGNITO_USER_POOL_ID: !Ref MindKernelUserPool
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref UserSecrets
-      FunctionUrlConfig:
-        AuthType: NONE # For easiest access (or AWS_IAM if client supports it)
-        InvokeMode: RESPONSE_STREAM
+
+Outputs:
+  MindKernelFunctionUrl:
+    Description: "Lambda Function URL"
+    Value: !GetAtt MindKernelFunctionUrl.FunctionUrl
+  CognitoUserPoolId:
+    Description: "Cognito User Pool ID"
+    Value: !Ref MindKernelUserPool
+  CognitoClientId:
+    Description: "Cognito User Pool Client ID"
+    Value: !Ref MindKernelUserPoolClient
+  CognitoDomain:
+    Description: "Cognito Domain"
+    Value: !Sub "https://mind-kernel-mcp-${AWS::AccountId}.auth.${AWS::Region}.amazoncognito.com"

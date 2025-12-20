@@ -5,3 +5,5 @@ starlette
 mangum
 uvicorn
 jsonpatch
+
+pyjwt[crypto]

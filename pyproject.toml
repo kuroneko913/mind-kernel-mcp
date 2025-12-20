@@ -10,7 +10,10 @@ dependencies = [
     "boto3",
     "requests",
     "pydantic",
-    "python-dotenv"
+    "python-dotenv",
+    "starlette",
+    "mangum",
+    "uvicorn[standard]"
 ]
 requires-python = ">=3.11"
 
