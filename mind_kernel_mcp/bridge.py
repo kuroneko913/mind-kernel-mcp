@@ -29,17 +29,32 @@ lambda_client = boto3.client(
     aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY", "test")
 )
 
+
+
+# Monkeypatch types.Tool to allow extra fields (specifically _meta)
+try:
+    # Try Pydantic v2 style
+    types.Tool.model_config["extra"] = "allow"
+except (AttributeError, KeyError):
+    # Try Pydantic v1 style
+    if hasattr(types.Tool, "Config"):
+        types.Tool.Config.extra = "allow"
+
 @app.list_tools()
 async def list_tools() -> List[types.Tool]:
     tools = []
     for tool_def in PUBLIC_TOOL_DEFINITIONS:
-        tools.append(
-            types.Tool(
-                name=tool_def["name"],
-                description=tool_def["description"],
-                inputSchema=tool_def["inputSchema"]
-            )
-        )
+        # Now that we patched Tool to allow extras, we can pass _meta directly
+        # constructing the kwargs dynamically
+        tool_kwargs = {
+            "name": tool_def["name"],
+            "description": tool_def["description"],
+            "inputSchema": tool_def["inputSchema"]
+        }
+        if "_meta" in tool_def:
+            tool_kwargs["_meta"] = tool_def["_meta"]
+            
+        tools.append(types.Tool(**tool_kwargs))
     return tools
 
 @app.call_tool()
@@ -144,6 +159,70 @@ async def call_tool(name: str, arguments: Any) -> List[Union[TextContent, ImageC
                 text=f"Bridge Error invoking Lambda: {str(e)}"
             )
         ]
+
+@app.list_resources()
+async def list_resources() -> List[types.Resource]:
+    return [
+        types.Resource(
+            uri="ui://widget/backlog.html",
+            name="Backlog Widget",
+            description="React Widget for displaying backlog items.",
+            mimeType="text/html+skybridge"
+        )
+    ]
+
+
+class ResourceWrapper:
+    def __init__(self, uri, mimeType, text):
+        self.uri = uri
+        self.mimeType = mimeType
+        self.mime_type = mimeType # sdk wants snake_case
+        self.text = text
+        self.blob = text 
+        self.content = text # sdk wants content
+
+@app.read_resource()
+async def read_resource(uri: Any) -> List[ResourceWrapper]:
+    # Handle both string and pydantic.AnyUrl
+    uri_str = str(uri)
+    
+    if "ui://widget/backlog.html" in uri_str:
+        try:
+             # Load JS and CSS from web/dist relative to current working directory
+             base_path = os.path.join(os.getcwd(), "web", "dist")
+             
+             with open(os.path.join(base_path, "widget.js"), "r", encoding="utf-8") as f:
+                 js_content = f.read()
+             
+             # CSS might be optional or in js
+             css_path = os.path.join(base_path, "widget.css")
+             if os.path.exists(css_path):
+                 with open(css_path, "r", encoding="utf-8") as f:
+                     css_content = f.read()
+             else:
+                 css_content = ""
+
+             # Template
+             html = f"""
+<div id="backlog-root"></div>
+<style>
+{css_content}
+</style>
+<script type="module">
+{js_content}
+</script>
+""".strip()
+             return [
+                 ResourceWrapper(
+                     uri=uri_str,
+                     mimeType="text/html+skybridge",
+                     text=html
+                 )
+             ]
+        except Exception as e:
+            raise ValueError(f"Error loading widget: {str(e)}")
+    
+    raise ValueError(f"Resource not found: {uri}")
 
 async def run():
     async with stdio_server() as (read, write):

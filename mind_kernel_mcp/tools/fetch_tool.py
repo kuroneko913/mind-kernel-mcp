@@ -44,7 +44,7 @@ def _create_fetch_facade_definition(key: str, config: dict) -> dict:
     """Creates a tool definition for a specific file."""
     tool_name = f"fetch_mind_kernel_{key}"
     description = config.get("fetch_description", f"Get the {key} data from Mind Kernel.")
-    return {
+    tool_def = {
         "name": tool_name,
         "description": description,
         "inputSchema": {
@@ -53,6 +53,9 @@ def _create_fetch_facade_definition(key: str, config: dict) -> dict:
             "required": []
         }
     }
+    if "_meta" in config:
+        tool_def["_meta"] = config["_meta"]
+    return tool_def
 
 def _create_fetch_executor(file_path: str) -> Callable[[dict[str, Any]], str]:
     """Creates an executor function for a specific file."""

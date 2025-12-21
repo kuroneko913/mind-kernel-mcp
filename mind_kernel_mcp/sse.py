@@ -126,10 +126,79 @@ async def handle_rpc(request: Request):
             # Just acknowledge
             return Response(status_code=200)
 
+
         elif method == "tools/list":
             response_data["result"] = {
                 "tools": PUBLIC_TOOL_DEFINITIONS
             }
+
+        elif method == "resources/list":
+            response_data["result"] = {
+                "resources": [
+                    {
+                        "uri": "ui://widget/backlog.html",
+                        "name": "Backlog Widget",
+                        "description": "React Widget for displaying backlog items.",
+                        "mimeType": "text/html+skybridge"
+                    }
+                ]
+            }
+
+        elif method == "resources/read":
+            uri = params.get("uri", "")
+            if uri == "ui://widget/backlog.html":
+                try:
+                     # Load JS and CSS from web/dist relative to current working directory
+                     # In Lambda, CWD is usually /var/task. We need to ensure web/dist is there.
+                     base_path = os.path.join(os.getcwd(), "web", "dist")
+                     
+                     if not os.path.exists(os.path.join(base_path, "widget.js")):
+                         # Fallback for different lambda root
+                         # Start searching? Or better, use __file__ relative path
+                         current_dir = os.path.dirname(os.path.abspath(__file__)) # mind_kernel_mcp/sse.py
+                         # web is sibling of mind_kernel_mcp
+                         base_path = os.path.join(os.path.dirname(current_dir), "web", "dist")
+
+                     # Check if still not found
+                     if not os.path.exists(os.path.join(base_path, "widget.js")):
+                          print(f"ERROR: widget.js not found at {base_path}")
+                          # Try CWD one last time logging it
+                          print(f"DEBUG: CWD is {os.getcwd()}")
+                          
+                     
+                     with open(os.path.join(base_path, "widget.js"), "r", encoding="utf-8") as f:
+                         js_content = f.read()
+                     
+                     css_path = os.path.join(base_path, "widget.css")
+                     if os.path.exists(css_path):
+                         with open(css_path, "r", encoding="utf-8") as f:
+                             css_content = f.read()
+                     else:
+                         css_content = ""
+
+                     html = f"""
+<div id="backlog-root"></div>
+<style>
+{css_content}
+</style>
+<script type="module">
+{js_content}
+</script>
+""".strip()
+                     response_data["result"] = {
+                         "contents": [
+                             {
+                                 "uri": uri,
+                                 "mimeType": "text/html+skybridge",
+                                 "text": html
+                             }
+                         ]
+                     }
+                except Exception as e:
+                    print(f"ERROR loading resource: {e}")
+                    response_data["error"] = {"code": -32000, "message": f"Server error: {str(e)}"}
+            else:
+                 response_data["error"] = {"code": -32602, "message": "Resource not found"}
 
 
         elif method == "tools/call":

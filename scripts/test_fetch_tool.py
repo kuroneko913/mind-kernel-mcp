@@ -26,9 +26,17 @@ async def run():
                 tool_names = [t.name for t in tools.tools]
                 print(f"Tools found: {tool_names}", file=sys.stderr)
                 
-                if "fetch_mind_kernel_identity" not in tool_names:
-                    print("Error: fetch_mind_kernel_identity not found!", file=sys.stderr)
+                if "fetch_mind_kernel_backlog" not in tool_names:
+                    print("Error: fetch_mind_kernel_backlog not found!", file=sys.stderr)
                     sys.exit(1)
+
+                # DEBUG: Print the backlog tool definition to check for _meta
+                backlog_tool = next(t for t in tools.tools if t.name == "fetch_mind_kernel_backlog")
+                print(f"DEBUG: Backlog Tool Definition: {backlog_tool}", file=sys.stderr)
+                if hasattr(backlog_tool, "_meta"):
+                     print(f"DEBUG: Backlog Tool _meta: {backlog_tool._meta}", file=sys.stderr)
+                else:
+                     print("DEBUG: Backlog Tool has NO _meta attribute", file=sys.stderr)
                 
                 # Determine user_id
                 default_user_id = os.getenv("USER_ID")
@@ -39,8 +47,8 @@ async def run():
                     sys.exit(1)
                 
                 # Call tool
-                print(f"Calling fetch_mind_kernel_identity with userId='{user_id}'...", file=sys.stderr)
-                result = await session.call_tool("fetch_mind_kernel_identity", arguments={"userId": user_id})
+                print(f"Calling fetch_mind_kernel_backlog with userId='{user_id}'...", file=sys.stderr)
+                result = await session.call_tool("fetch_mind_kernel_backlog", arguments={"userId": user_id})
                 
                 # Output result
                 if result.content and len(result.content) > 0:

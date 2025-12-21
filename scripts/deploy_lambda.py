@@ -37,7 +37,19 @@ def create_deployment_package(build_dir=".build_lambda", zip_path="lambda_functi
         ignore=shutil.ignore_patterns("__pycache__", "*.pyc")
     )
     
-    # 3. Zip it
+    # 3. Copy frontend assets (web/dist)
+    web_dist_src = "web/dist"
+    if os.path.exists(web_dist_src):
+        print(f"Copying {web_dist_src} to package...")
+        web_dest = os.path.join(build_dir, "web", "dist")
+        # Ensure parent web dir exists
+        os.makedirs(os.path.join(build_dir, "web"), exist_ok=True)
+        
+        shutil.copytree(web_dist_src, web_dest, 
+            dirs_exist_ok=True # Python 3.8+
+        )
+    else:
+        print(f"WARNING: {web_dist_src} not found. UI widgets will not work in Lambda.")
     print(f"Zipping to {zip_path}...")
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
         for root, dirs, files in os.walk(build_dir):

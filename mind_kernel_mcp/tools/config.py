@@ -21,7 +21,10 @@ KERNEL_FILES = {
     },
     "backlog": {
         "path": "kernel/backlog.json",
-        "fetch_description": "Get the System Backlog. Use this to read current tasks, todos, and future plans.",
-        "update_description": "Update the Backlog (add/remove tasks)."
+        "fetch_description": "Get the System Backlog. Returns a list of tasks suitable for rendering as a Carousel or List component.",
+        "update_description": "Update the Backlog (add/remove tasks).",
+        "_meta": {
+            "openai/outputTemplate": "ui://widget/backlog.html"
+        }
     }
 }
