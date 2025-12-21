@@ -30,5 +30,6 @@ services:
       - REPO_NAME=${REPO_NAME}
       - AWS_ENDPOINT_URL_LAMBDA=http://localstack:4566
       - USER_ID=${USER_ID}
+      - MCP_API_KEY=${MCP_API_KEY}
     depends_on:
       - localstack

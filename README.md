@@ -4,6 +4,8 @@ Mind Kernel プライベートリポジトリから `core.json` を取得する�
 LocalStack 上の Lambda + DynamoDB で動作するサーバーレスアーキテクチャをローカルで完全に再現しています。
 MCPクライアントはローカルのブリッジスクリプトを経由して Lambda を呼び出します。
 
+> **詳細ドキュメント**: プロジェクトの設計思想やアーキテクチャについては [PROJECT_GUIDE.md](./PROJECT_GUIDE.md) を参照してください。
+
 ## セットアップ
 
 
@@ -42,20 +44,40 @@ MCPクライアントはローカルのブリッジスクリプトを経由し�
 - `make down`: 環境の停止
 ### VSCode / Claude Desktop での利用
 
-VSCode の MCP対応拡張機能 (Claude Dev, Roo Codeなど) や Claude Desktop アプリの設定ファイルに以下のように追記してください。
-設定例は `claude_desktop_config_example.json` にもあります。
+利用形態に合わせて、以下のいずれかの設定を `claude_desktop_config.json` 等に追記してください。
+
+#### A. ローカル開発環境 (LocalStck + Docker)
+開発中のコードをローカルで即座に動かしたい場合に使用します。
+※ 事前に `make up` でコンテナを起動しておく必要があります。
 
 ```json
 {
   "mcpServers": {
-    "mind-kernel": {
+    "mind-kernel-local": {
       "command": "make",
       "args": ["run"]
     }
   }
 }
 ```
-※ `make` コマンドが実行できるパス（プロジェクトルート）で開いている必要があります。絶対パスを指定する場合は `"command": "/usr/bin/make", "args": ["run", "-C", "/abs/path/to/project"]` のようにしてください。
+※ 絶対パス指定の例: `"command": "/usr/bin/make", "args": ["run", "-C", "/abs/path/to/project"]`
+
+#### B. 本番環境 (AWS Lambda)
+デプロイ済みの Lambda 関数に直接接続します。
+Dockerコンテナを起動しておく必要がなく、常時利用に適しています。
+
+```json
+{
+  "mcpServers": {
+    "mind-kernel-remote": {
+      "serverUrl": "https://<FunctionUrlID>.lambda-url.<Region>.on.aws/",
+      "headers": {
+        "X-API-Key": "<ENV: MCP_API_KEY>"
+      }
+    }
+  }
+}
+```
 
 ### MCP Inspector でのテスト
 

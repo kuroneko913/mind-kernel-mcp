@@ -16,11 +16,18 @@ def create_deployment_package(build_dir=".build_lambda", zip_path="lambda_functi
     # 1. Install dependencies (requests is needed in Lambda)
     # Pydantic/MCP are NOT needed in Lambda for this simple logic, only requests and boto3 (boto3 is built-in but good to be sure)
     # We install to build_dir
+    # We install to build_dir targeting Linux x86_64 (Standard Lambda environment)
+    # Using --platform manylinux2014_x86_64 seems to be required by the LocalStack runtime
+    
     subprocess.check_call([
         sys.executable, "-m", "pip", "install", 
         "-r", "requirements.txt",
         "--target", build_dir,
-        "--no-cache-dir"
+        "--platform", "manylinux2014_x86_64",
+        "--only-binary=:all:",
+        "--implementation", "cp",
+        "--python-version", "3.12",
+        "--upgrade"
     ])
     
     # 2. Copy application code
@@ -68,7 +75,10 @@ def deploy_lambda():
         "DYNAMODB_TABLE_NAME": os.getenv("DYNAMODB_TABLE_NAME", "UserSecrets"),
         # IMPORTANT: LocalStack Lambda needs to reach LocalStack
         # In Docker Compose, 'localstack' is the hostname
-        "AWS_ENDPOINT_URL": os.getenv("AWS_ENDPOINT_URL_LAMBDA", "http://localstack:4566")
+        "AWS_ENDPOINT_URL": os.getenv("AWS_ENDPOINT_URL_LAMBDA", "http://localstack:4566"),
+        # Auth Config
+        "MCP_API_KEY": os.getenv("MCP_API_KEY", ""),
+        "LOCAL_USER_ID": os.getenv("USER_ID", "") # Using USER_ID from .env/compose as LOCAL_USER_ID
     }
 
     try:

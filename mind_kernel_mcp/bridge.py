@@ -62,7 +62,11 @@ async def call_tool(name: str, arguments: Any) -> List[Union[TextContent, ImageC
             "resource": "/",
             "path": "/",
             "httpMethod": "POST",
-            "headers": {"Content-Type": "application/json"},
+            "httpMethod": "POST",
+            "headers": {
+                "Content-Type": "application/json",
+                "X-API-Key": os.getenv("MCP_API_KEY", "")
+            },
             "multiValueHeaders": {},
             "queryStringParameters": None,
             "multiValueQueryStringParameters": None,
