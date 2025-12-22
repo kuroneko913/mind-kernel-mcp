@@ -24,7 +24,9 @@ KERNEL_FILES = {
         "fetch_description": "Get the System Backlog. Returns a list of tasks suitable for rendering as a Carousel or List component.",
         "update_description": "Update the Backlog (add/remove tasks).",
         "_meta": {
-            "openai/outputTemplate": "ui://widget/backlog.html"
+            "openai/outputTemplate": "ui://widget/backlog.html",
+            "openai/outputTemplateCsp": "script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https:;",
+            "openai/outputTemplateDomain": "mind-kernel-mcp"
         }
     }
 }
