@@ -71,7 +71,13 @@ async def handle_resources_list(params: Dict[str, Any], user_id: Optional[str]) 
                 "uri": "ui://widget/backlog.html",
                 "name": "Backlog Widget",
                 "description": "React Widget for displaying backlog items.",
-                "mimeType": "text/html+skybridge"
+                "mimeType": "text/html+skybridge",
+                "annotations": {
+                    "widget": {
+                        "csp": "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';",
+                        "domain": "backlog-widget"
+                    }
+                }
             }
         ]
     }
