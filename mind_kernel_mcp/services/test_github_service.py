@@ -121,14 +121,12 @@ def test_propose_update_flow(provider):
          patch.object(provider, "_validate_update_params") as mock_validate, \
          patch.object(provider, "_update_target_file") as mock_update_target, \
          patch.object(provider, "_update_change_log") as mock_update_log, \
-         patch.object(provider, "_update_summary") as mock_update_summary, \
          patch.object(provider, "_create_pr", return_value={"html_url": "http://github.com/pr/1"}) as mock_create_pr:
         result = provider.propose_update(
             path="core.json",
             commit_message="test commit",
             content="new content",
-            change_log_entry="- added",
-            update_summary_content="summary"
+            change_log_entry="- added"
         )
         assert result == {"html_url": "http://github.com/pr/1"}
         mock_branch.assert_called_once_with("core.json")
@@ -136,5 +134,4 @@ def test_propose_update_flow(provider):
         mock_validate.assert_called_once()
         mock_update_target.assert_called_once()
         mock_update_log.assert_called_once()
-        mock_update_summary.assert_called_once()
         mock_create_pr.assert_called_once()

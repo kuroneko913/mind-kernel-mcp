@@ -12,6 +12,8 @@ from mangum import Mangum
 from mind_kernel_mcp.tools import (
     PUBLIC_TOOL_DEFINITIONS, TOOL_EXECUTORS
 )
+# Handlers are now used in rpc_handlers, but sse.py needs dispatcher
+from mind_kernel_mcp.rpc_handlers import dispatch_rpc
 
 JWKS_CLIENT = None
 
@@ -109,151 +111,73 @@ async def handle_rpc(request: Request):
     }
 
     try:
-        if method == "initialize":
-            response_data["result"] = {
-                "protocolVersion": "2024-11-05",
-                "capabilities": {
-                    "tools": {"listChanged": False},
-                    "resources": {"subscribe": False, "listChanged": False}
-                },
-                "serverInfo": {
-                    "name": "mind-kernel-mcp",
-                    "version": "1.0.0"
-                }
-            }
+        # Authentication extraction (performed once for all methods)
+        user_id = verify_token(request)
         
-        elif method == "notifications/initialized":
-            # Just acknowledge
-            return Response(status_code=200)
-
-
-        elif method == "tools/list":
-            response_data["result"] = {
-                "tools": PUBLIC_TOOL_DEFINITIONS
-            }
-
-        elif method == "resources/list":
-            response_data["result"] = {
-                "resources": [
-                    {
-                        "uri": "ui://widget/backlog.html",
-                        "name": "Backlog Widget",
-                        "description": "React Widget for displaying backlog items.",
-                        "mimeType": "text/html+skybridge"
-                    }
-                ]
-            }
-
-        elif method == "resources/read":
-            uri = params.get("uri", "")
-            if uri == "ui://widget/backlog.html":
-                try:
-                     # Load JS and CSS from web/dist relative to current working directory
-                     # In Lambda, CWD is usually /var/task. We need to ensure web/dist is there.
-                     base_path = os.path.join(os.getcwd(), "web", "dist")
-                     
-                     if not os.path.exists(os.path.join(base_path, "widget.js")):
-                         # Fallback for different lambda root
-                         # Start searching? Or better, use __file__ relative path
-                         current_dir = os.path.dirname(os.path.abspath(__file__)) # mind_kernel_mcp/sse.py
-                         # web is sibling of mind_kernel_mcp
-                         base_path = os.path.join(os.path.dirname(current_dir), "web", "dist")
-
-                     # Check if still not found
-                     if not os.path.exists(os.path.join(base_path, "widget.js")):
-                          print(f"ERROR: widget.js not found at {base_path}")
-                          # Try CWD one last time logging it
-                          print(f"DEBUG: CWD is {os.getcwd()}")
-                          
-                     
-                     with open(os.path.join(base_path, "widget.js"), "r", encoding="utf-8") as f:
-                         js_content = f.read()
-                     
-                     css_path = os.path.join(base_path, "widget.css")
-                     if os.path.exists(css_path):
-                         with open(css_path, "r", encoding="utf-8") as f:
-                             css_content = f.read()
-                     else:
-                         css_content = ""
-
-                     html = f"""
-<div id="backlog-root"></div>
-<style>
-{css_content}
-</style>
-<script type="module">
-{js_content}
-</script>
-""".strip()
-                     response_data["result"] = {
-                         "contents": [
-                             {
-                                 "uri": uri,
-                                 "mimeType": "text/html+skybridge",
-                                 "text": html
-                             }
-                         ]
-                     }
-                except Exception as e:
-                    print(f"ERROR loading resource: {e}")
-                    response_data["error"] = {"code": -32000, "message": f"Server error: {str(e)}"}
-            else:
-                 response_data["error"] = {"code": -32602, "message": "Resource not found"}
-
-
-        elif method == "tools/call":
-            name = params.get("name")
-            args = params.get("arguments", {})
-            
-            # --- Implicit User ID Injection ---
-            user_id = verify_token(request)
-            
-            # Fallback for local development
-            if not user_id:
-                user_id = os.environ.get("DEBUG_USER_ID")
+        # Fallback for local development
+        if not user_id:
+            user_id = os.environ.get("DEBUG_USER_ID")
+            if user_id:
                 print(f"DEBUG: Using fallback userId: {user_id}")
             else:
-                print(f"DEBUG: Authenticated userId: {user_id}")
-
-            if not user_id:
-                 # Strictly enforce auth if no fallback
-                 raise ValueError("Unauthorized: Missing valid authentication token")
-
-            # Inject into arguments
-            args["userId"] = user_id
-            # ----------------------------------
-            
-            if name in TOOL_EXECUTORS:
-                try:
-                    content = TOOL_EXECUTORS[name](args)
-                except Exception as tool_err:
-                     print(f"ERROR executing tool {name}: {tool_err}")
-                     # Return error as content so the LLM sees it, or raise JSON-RPC error?
-                     # Standard MCP behavior suggests returning TextContent with error info or raising.
-                     raise tool_err 
-            else:
-                 raise ValueError(f"Unknown tool: {name}")
-            
-            response_data["result"] = {
-                "content": [
-                    {
-                        "type": "text",
-                        "text": content
-                    }
-                ]
-            }
-            
+                pass 
+                # Don't log failure yet, as some methods (initialize) don't need it.
+                # Handlers will check.
         else:
-            if method == "ping":
-                 response_data["result"] = {}
-            else:
-                 response_data["error"] = {"code": -32601, "message": f"Method {method} not found"}
+            print(f"DEBUG: Authenticated userId: {user_id}")
 
+        result = await dispatch_rpc(method, params, user_id)
+        
+        # notifications/initialized returns None, and expects no response body if it was a notification
+        # But JSON-RPC over HTTP usually expects a response for Requests.
+        # notifications/initialized is a notification, so we might not need to return anything?
+        # Specification says notifications don't get responses. 
+        # However, for simplicity using starlette, we usually return 200 OK.
+        # If result is None and id is None (notification) -> 200 OK empty?
+        # In this implementation, handle_rpc handles requests with IDs mostly.
+        # If request_id is present, we must return a response.
+        
+        if result is not None:
+            response_data["result"] = result
+        else:
+            # Maybe it was a notification or just empty result?
+            # If method is notifications/initialized, and no ID, we return nothing or 200 OK?
+            # Original code returned Response(status_code=200).
+            if method == "notifications/initialized":
+                 return Response(status_code=200)
+            # Default empty dict for result if not None?
+            # If handler returns None and it's not notification, what then?
+            # Let's assume handlers return dicts for results.
+            if request_id is not None and result is None:
+                 # Should typically not happen for methods that return data.
+                 # Assuming empty dict if None/Void?
+                 response_data["result"] = {}
+
+    except NotImplementedError:
+        response_data["error"] = {"code": -32601, "message": f"Method {method} not found"}
+    
+    except ValueError as ve:
+        # Map ValueError to invalid params or internal error or unauthorized (custom)
+        # Check message content for "Unauthorized" or "Resource not found"
+        msg = str(ve)
+        code = -32603 # Internal error default
+        if "Unauthorized" in msg:
+             code = -32001 # Custom auth error? or Internal
+        elif "Resource not found" in msg:
+             code = -32602 # Invalid params?
+        elif "Unknown tool" in msg:
+             code = -32601 # Method not found / Tool not found
+
+        response_data["error"] = {
+            "code": code,
+            "message": msg
+        }
+        
     except Exception as e:
         print(f"ERROR: {e}")
         response_data["error"] = {
             "code": -32603,
-            "message": str(e)
+            "message": f"Internal error: {str(e)}"
         }
 
     return JSONResponse(response_data)

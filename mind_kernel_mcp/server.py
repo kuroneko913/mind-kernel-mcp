@@ -5,8 +5,21 @@ import mcp.types as types
 from typing import Any, List, Union
 
 from mind_kernel_mcp.tools import TOOL_DEFINITION, execute_fetch_tool, UPDATE_TOOL_DEFINITION, execute_update_tool
+from mind_kernel_mcp.prompts import handle_list_prompts, handle_get_prompt
+import os
 
 app = Server("mind-kernel-mcp")
+
+@app.list_prompts()
+async def list_prompts() -> List[types.Prompt]:
+    return await handle_list_prompts()
+
+@app.get_prompt()
+async def get_prompt(name: str, arguments: Any) -> types.GetPromptResult:
+    # Local server might not have auth context easily?
+    # Or we can assume a default user_id env var for local usage.
+    user_id = os.environ.get("LOCAL_USER_ID", "test-user")
+    return await handle_get_prompt(name, arguments, user_id)
 
 @app.list_tools()
 async def list_tools() -> List[types.Tool]:
