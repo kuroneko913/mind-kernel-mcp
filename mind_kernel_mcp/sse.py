@@ -6,7 +6,7 @@ from jwt import PyJWKClient
 from starlette.applications import Starlette
 from starlette.routing import Route
 from starlette.requests import Request
-from starlette.responses import JSONResponse, Response, StreamingResponse
+from starlette.responses import JSONResponse, Response, StreamingResponse, PlainTextResponse
 from mangum import Mangum
 
 from mind_kernel_mcp.tools import (
@@ -221,8 +221,16 @@ async def oauth_discovery(request):
     # Use StreamingResponse to be consistent with AWS_LWA_INVOKE_MODE: response_stream
     return StreamingResponse(iter([json_str]), media_type="application/json")
 
+def openai_verification(request):
+    """
+    Handle ChatGPT domain verification.
+    """
+    return PlainTextResponse("deZkwHsP3CxBdkiGZphMrsfXatOAd99KY1Nh8C1AgYg")
+
+
 app = Starlette(
     routes=[
+        Route("/.well-known/openai-apps-challenge", endpoint=openai_verification, methods=["GET"]),
         Route("/.well-known/oauth-protected-resource", endpoint=oauth_discovery, methods=["GET"]),
         Route("/messages", endpoint=handle_rpc, methods=["POST"]),
         Route("/sse", endpoint=handle_sse, methods=["GET", "POST"]), 
