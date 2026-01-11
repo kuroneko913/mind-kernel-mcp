@@ -37,9 +37,10 @@ def test_execute_update_generic_tool_success(MockStore, MockProvider):
         "path/file.json",
         "test commit",
         content=None,
-        json_patch=[{"op": "replace", "path": "/foo", "value": "bar"}],
+        json_patch=[{"op": "replace", "path": "/foo", "value": "bar"}, {"op": "replace", "path": "/version", "value": "v1.0.0"}],
         change_log_entry="my changelog",
-        pr_body="my pr body"
+        pr_body="my pr body",
+        pr_number=None
     )
 
 def test_execute_update_generic_tool_validation():
@@ -103,3 +104,40 @@ def test_execute_update_facade_tools(MockStore, MockProvider):
     TOOL_EXECUTORS["update_mind_kernel_backlog"](base_args.copy())
     args, _ = mock_provider_instance.propose_update.call_args
     assert args[0] == "kernel/backlog.json"
+
+@patch("mind_kernel_mcp.tools.update_tool.GitHubContentProvider")
+@patch("mind_kernel_mcp.tools.update_tool.DynamoDBSecretStore")
+def test_version_update_missing_in_patch_regression(MockStore, MockProvider):
+    """Regression test for version update not being applied automatically."""
+    # Setup mocks
+    mock_store_instance = MockStore.return_value
+    mock_store_instance.get_github_token.return_value = "fake-token"
+    
+    mock_provider_instance = MockProvider.return_value
+    mock_provider_instance.propose_update.return_value = {
+        "html_url": "http://github.com/pr/123",
+        "number": 123
+    }
+
+    # Execute with version but NO explicit patch for version
+    args = {
+        "userId": "user123",
+        "filePath": "kernel/identity.json",
+        "version": "v1.2.3",
+        "jsonPatch": [{"op": "replace", "path": "/foo", "value": "bar"}],
+        "commitMessage": "test commit"
+    }
+    
+    execute_update_generic_tool(args)
+
+    # Verify json_patch content passed to propose_update
+    kwargs = mock_provider_instance.propose_update.call_args[1]
+    json_patch = kwargs.get("json_patch")
+    
+    # Check if version update is present
+    version_update_present = any(
+        op.get("path") == "/version" and op.get("value") == "v1.2.3"
+        for op in json_patch
+    )
+    
+    assert version_update_present, "'/version' update NOT FOUND in json_patch!"

@@ -133,7 +133,12 @@ def deploy_lambda():
                 Timeout=30,
                 MemorySize=128
             )
-            
+        
+        print(f"Waiting for function {function_name} to be active...")
+        # Wait until the function is active
+        waiter = client.get_waiter("function_active_v2" if os.getenv("AWS_ENDPOINT_URL") and "localstack" in os.getenv("AWS_ENDPOINT_URL") else "function_active")
+        waiter.wait(FunctionName=function_name)
+
         print("Deployment success!")
         
     except Exception as e:

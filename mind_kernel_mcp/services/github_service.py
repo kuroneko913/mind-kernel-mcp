@@ -199,23 +199,43 @@ class GitHubContentProvider(ContentProvider):
         if not (json_patch or content):
             raise ValueError("Either content or json_patch must be provided.")
 
-    def propose_update(self, path: str, commit_message: str, content: Optional[str] = None, json_patch: Optional[List[dict]] = None, change_log_entry: Optional[str] = None, pr_body: Optional[str] = None) -> dict:
-        # 1. 作業用ブランチの作成
-        branch_name, default_branch = self._create_work_branch(path)
+    def get_pull_request(self, number: int) -> dict:
+        url = f"https://api.github.com/repos/{self.owner}/{self.repo}/pulls/{number}"
+        headers = self._get_headers()
+        resp = requests.get(url, headers=headers)
+        resp.raise_for_status()
+        return resp.json()
 
-        # 2. 新しいコンテンツの準備
+    def propose_update(self, path: str, commit_message: str, content: Optional[str] = None, json_patch: Optional[List[dict]] = None, change_log_entry: Optional[str] = None, pr_body: Optional[str] = None, pr_number: Optional[int] = None) -> dict:
+        
+        if pr_number:
+            # Update existing PR
+            pr = self.get_pull_request(pr_number)
+            branch_name = pr["head"]["ref"]
+            # default_branch is not needed for update, but we might need it if we were rebasing (not implemented)
+            # For now just proceed with existing branch
+        else:
+            # 1. Create work branch
+            branch_name, default_branch = self._create_work_branch(path)
+
+        # 2. Prepare new content
         new_content_str = self._prepare_new_content(path, content, json_patch, branch_name)
 
-        # 3. バリデーションチェック
+        # 3. Validation check
         self._validate_update_params(commit_message, json_patch, content)
 
-        # 4. ファイルを更新 (新しいブランチで)
+        # 4. Update file (on the branch)
         self._update_target_file(path, new_content_str, commit_message, branch_name)
 
-        # 5. ChangeLogs.md の更新 (指定がある場合)
+        # 5. Update ChangeLogs.md (if specified)
         if change_log_entry:
             self._update_change_log(change_log_entry, commit_message, branch_name)
 
-        # 6. Pull Requestの作成
-        pr = self._create_pr(path, commit_message, pr_body, branch_name, default_branch)
+        # 6. Create Pull Request (only if new)
+        if not pr_number:
+            pr = self._create_pr(path, commit_message, pr_body, branch_name, default_branch)
+        else:
+            # If updating existing PR, return the fetched PR object
+            pass
+            
         return pr

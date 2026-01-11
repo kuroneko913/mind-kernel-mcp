@@ -131,3 +131,33 @@ sam deploy --resolve-image-repos
 
 ---
 *Created at: 2025-12-21*
+
+## 7. Troubleshooting & Development Tips (トラブルシューティングと開発のヒント)
+
+開発中によく遭遇するシナリオと対処法です。
+
+### 7.1. Code Changes & Lambda Redeployment
+`mind_kernel_mcp/` 配下のコード（ツールロジックやサービス）を変更した場合、変更を反映させるには **Lambda関数の再デプロイ** が必要です。`app` コンテナの再起動だけでは反映されません。
+
+```bash
+# Lambda関数を更新して、Activeになるまで待機する
+docker compose run --rm app python scripts/deploy_lambda.py
+```
+
+### 7.2. Environment Variable Changes (GITHUB_TOKEN etc.)
+`.env` ファイルを変更した場合（例: `GITHUB_TOKEN` の更新）、その値をシステムに認識させるために **DBの再シード** が必要です。
+
+```bash
+# DynamoDB (UserSecrets) を .env の値で更新する
+docker compose run --rm app python scripts/seed_local_db.py
+```
+
+### 7.3. Authentication vs Identity
+ローカル開発における認証とユーザー識別の違いについて：
+
+*   **`MCP_API_KEY` (Authentication)**: 
+    *   **"あなたは誰ですか？"（アクセス許可）**
+    *   クライアントがサーバーにアクセスするための合言葉です。認証をパスするために使用します。
+*   **`USER_ID` (Identity)**: 
+    *   **"どのユーザーのデータを使いますか？"（データコンテキスト）**
+    *   認証通過後、システムがどのユーザーとして振る舞うかを決定します。DynamoDBからGitHubトークンなどの秘匿情報を引き出すキーとして使用されます。

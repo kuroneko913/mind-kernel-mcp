@@ -135,3 +135,62 @@ def test_propose_update_flow(provider):
         mock_update_target.assert_called_once()
         mock_update_log.assert_called_once()
         mock_create_pr.assert_called_once()
+
+def test_propose_update_with_pr_number(provider):
+    """Regression test for updating existing PR using pr_number."""
+    # Mock get_pull_request response
+    mock_pr_resp = MagicMock()
+    mock_pr_resp.json.return_value = {"head": {"ref": "existing-branch"}}
+    mock_pr_resp.status_code = 200
+    
+    # Mock update_file response (GET sha)
+    mock_get_sha = MagicMock()
+    mock_get_sha.json.return_value = {"sha": "old_sha", "content": "eyJ2ZXJzaW9uIjogInYxLjAuMCIsICJmb28iOiAib3JpZ2luYWwifQ=="} 
+    mock_get_sha.status_code = 200
+
+    # Mock update_file response (PUT)
+    mock_put_resp = MagicMock()
+    mock_put_resp.json.return_value = {"commit": {"sha": "new_sha"}}
+    mock_put_resp.status_code = 200
+
+    # Configure requests.get side effects
+    def side_effect(url, **kwargs):
+        if "/pulls/999" in url:
+            return mock_pr_resp
+        if "/contents/" in url:
+            return mock_get_sha
+        return MagicMock() # default
+        
+    with patch("mind_kernel_mcp.services.github_service.requests.get", side_effect=side_effect) as mock_get, \
+         patch("mind_kernel_mcp.services.github_service.requests.put", return_value=mock_put_resp) as mock_put, \
+         patch("mind_kernel_mcp.services.github_service.requests.post") as mock_post:
+        
+        # Call propose_update
+        provider.propose_update(
+            path="core.json",
+            commit_message="msg",
+            content=None,
+            json_patch=[{"op": "replace", "path": "/foo", "value": "bar"}],
+            pr_number=999
+        )
+        
+        # Verification
+        # Should call get (pulls/999) - implied by side_effect trigger or explicit check
+        # Should call put (contents/core.json) with branch="existing-branch"
+        
+        found_update = False
+        for call_args in mock_put.call_args_list:
+            url = call_args[0][0] # first arg
+            if "core.json" in url:
+                 found_update = True
+                 data = call_args[1].get('json')
+                 assert data.get('branch') == "existing-branch", f"Expected branch 'existing-branch', got {data.get('branch')}"
+        
+        assert found_update, "No update PUT request found for core.json"
+            
+        # Check NO POST (create PR) calls
+        post_calls = mock_post.call_args_list
+        for call_args in post_calls:
+            url = call_args[0][0]
+            if "/pulls" in url:
+                 assert False, "Create PR (POST /pulls) was called!"

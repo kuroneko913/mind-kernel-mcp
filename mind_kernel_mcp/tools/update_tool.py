@@ -35,6 +35,10 @@ UPDATE_GENERIC_TOOL_DEFINITION = {
             "prBody": {
                 "type": "string",
                 "description": "Optional PR body; if omitted a default description will be generated."
+            },
+            "prNumber": {
+                "type": "integer",
+                "description": "Optional PR number. If provided, updates the existing PR instead of creating a new one."
             }
         },
         "required": ["version", "jsonPatch", "commitMessage"]
@@ -53,7 +57,9 @@ def _execute_update_logic(arguments: dict[str, Any], file_path: str = None) -> s
     json_patch = arguments.get("jsonPatch")
     commit_message = arguments.get("commitMessage")
     change_log_entry = arguments.get("changeLogEntry")
+    change_log_entry = arguments.get("changeLogEntry")
     pr_body = arguments.get("prBody")
+    pr_number = arguments.get("prNumber")
 
     if not user_id:
         raise ValueError("userId is required")
@@ -65,6 +71,15 @@ def _execute_update_logic(arguments: dict[str, Any], file_path: str = None) -> s
         raise ValueError("commitMessage is required")
     if not json_patch:
         raise ValueError("jsonPatch is required")
+
+    # Ensure version update is included in jsonPatch
+    version_patch_exists = any(op.get("path") == "/version" for op in json_patch)
+    if version and not version_patch_exists:
+        json_patch.append({
+            "op": "replace",
+            "path": "/version",
+            "value": version
+        })
 
     # Auto-generate changeLogEntry if not supplied
     if not change_log_entry:
@@ -84,12 +99,16 @@ def _execute_update_logic(arguments: dict[str, Any], file_path: str = None) -> s
         content=None, 
         json_patch=json_patch,
         change_log_entry=change_log_entry,
-        pr_body=pr_body
+        pr_body=pr_body,
+        pr_number=pr_number
     )
     
-    pr_url = result.get("html_url", "URL unknown")
-    pr_number = result.get("number", "?")
-    return f"Pull Request successfully created: {pr_url} (PR #{pr_number})"
+    if pr_number:
+        return f"Pull Request successfully updated: PR #{pr_number}"
+    else:
+        pr_url = result.get("html_url", "URL unknown")
+        pr_number_res = result.get("number", "?")
+        return f"Pull Request successfully created: {pr_url} (PR #{pr_number_res})"
 
 def execute_update_generic_tool(arguments: dict[str, Any]) -> str:
     """Execute the generic update tool."""
@@ -110,7 +129,8 @@ def _create_update_facade_definition(key: str, config: dict) -> dict:
                 "jsonPatch": { "type": "array", "items": { "type": "object" }, "description": "JSON Patch operations." },
                 "commitMessage": { "type": "string", "description": "Commit message for the Pull Request." },
                 "changeLogEntry": { "type": "string", "description": "Optional ChangeLogs.md entry." },
-                "prBody": { "type": "string", "description": "Optional PR body." }
+                "prBody": { "type": "string", "description": "Optional PR body." },
+                "prNumber": { "type": "integer", "description": "Optional PR number to update specific PR." }
             },
             "required": ["version", "jsonPatch", "commitMessage"]
         }
