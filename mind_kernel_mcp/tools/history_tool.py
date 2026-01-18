@@ -34,25 +34,28 @@ def _parse_relative_date(date_spec: str) -> str:
         parts = date_spec.split()
         if len(parts) >= 3:
             try:
-                amount = int(parts[-3]) # e.g. "1" in "1 week ago" logic is a bit loose with split
                 # better parse: "1 week ago". split -> ["1", "week", "ago"]
                 amount = int(parts[0])
-                unit = parts[1]
+                unit_str = parts[1]
                 
-                if "day" in unit:
-                    delta = timedelta(days=amount)
-                elif "week" in unit:
-                    delta = timedelta(weeks=amount)
-                elif "month" in unit:
-                    delta = timedelta(days=amount * 30) # approx
-                elif "year" in unit:
-                    delta = timedelta(days=amount * 365)
-                elif "hour" in unit:
-                    delta = timedelta(hours=amount)
-                else:
+                # Unit mapping for cleaner logic
+                unit_multipliers = {
+                    "day": timedelta(days=1),
+                    "week": timedelta(weeks=1),
+                    "month": timedelta(days=30), # approx
+                    "year": timedelta(days=365), # approx
+                    "hour": timedelta(hours=1)
+                }
+                
+                # Find matching unit
+                multiplier = next((m for u, m in unit_multipliers.items() if u in unit_str), None)
+                
+                if not multiplier:
                      raise ValueError("Unknown time unit")
                 
+                delta = multiplier * amount
                 target_date = now - delta
+                
                 return target_date.isoformat() + "Z"
             except (ValueError, IndexError):
                 pass
@@ -67,7 +70,7 @@ def _parse_relative_date(date_spec: str) -> str:
 
     return date_spec # Return as is if we can't parse, hoping it's already ISO or API accepts it
 
-def extract_rich_context(data: Any) -> str:
+def summarize_entity(data: Any) -> str:
     """
     Extracts a human-readable summary from a dictionary (description, name, values).
     Returns a string representation.
@@ -107,32 +110,37 @@ def detailed_semantic_diff(old_data: Dict[str, Any], new_data: Dict[str, Any]) -
     """
     changes = []
     
+    def _handle_dict_diff(old_dict: Dict, new_dict: Dict, current_path: str):
+        all_keys = set(old_dict.keys()) | set(new_dict.keys())
+        
+        for key in all_keys:
+            # Ignore metadata
+            if key in ["version", "schema", "$schema", "id"]:
+                continue
+
+            new_path = f"{current_path}.{key}" if current_path else key
+            
+            if key not in old_dict:
+                changes.append({
+                    "type": "ADDED",
+                    "key": new_path,
+                    "value": new_dict[key],
+                    "context": summarize_entity(new_dict[key])
+                })
+            elif key not in new_dict:
+                changes.append({
+                    "type": "REMOVED",
+                    "key": new_path,
+                    "value": old_dict[key],
+                    "context": summarize_entity(old_dict[key])
+                })
+            else:
+                _recurse(old_dict[key], new_dict[key], new_path)
+
     def _recurse(old, new, path):
         if isinstance(old, dict) and isinstance(new, dict):
-            all_keys = set(old.keys()) | set(new.keys())
-            for key in all_keys:
-                new_path = f"{path}.{key}" if path else key
-                
-                # Ignore metadata
-                if key in ["version", "schema", "$schema", "id"]:
-                    continue
-
-                if key not in old:
-                    # ADDED
-                    changes.append({
-                        "type": "ADDED",
-                        "key": new_path,
-                        "value": new[key],
-                        "context": extract_rich_context(new[key])
-                    })
-                elif key not in new:
-                    # REMOVED (We mostly care about growth/additions, but good to know)
-                    pass 
-                else:
-                    # MODIFIED - recurse
-                    _recurse(old[key], new[key], new_path)
+            _handle_dict_diff(old, new, path)
         elif old != new:
-             # Leaf node change
              changes.append({
                 "type": "MODIFIED",
                 "key": path,
@@ -143,49 +151,6 @@ def detailed_semantic_diff(old_data: Dict[str, Any], new_data: Dict[str, Any]) -
 
     _recurse(old_data, new_data, "")
     return changes
-
-def generate_rich_markdown(report: Dict[str, List[Dict[str, Any]]], duration_label: str):
-    md = f"# Mind Kernel Growth Report ({duration_label})\n\n"
-    
-    if not report:
-        md += "No significant changes detected in the specified period.\n"
-        return md
-
-    for category, changes in report.items():
-        if not changes:
-            continue
-            
-        md += f"## {category}\n"
-        
-        # Filter for top-level additions or significant changes to reduce noise
-        added_items = [c for c in changes if c['type'] == 'ADDED']
-        modified_items = [c for c in changes if c['type'] == 'MODIFIED']
-        
-        if added_items:
-            md += "### 🆕 New Acquisitions\n"
-            for item in added_items:
-                key_name = item['key'].split('.')[-1]
-                full_key = item['key']
-                
-                # Indent based on depth or just list
-                if isinstance(item['value'], dict):
-                    md += f"- **{key_name}** (`{full_key}`)\n"
-                    context = item['context']
-                    if context:
-                        md += f"  > {context}\n"
-                else:
-                     md += f"- **{key_name}**: {item['value']}\n"
-
-        if modified_items:
-             md += "\n### 🔄 Updates & Shifts\n"
-             for item in modified_items:
-                 key_name = item['key'].split('.')[-1]
-                 # Show semantic changes
-                 md += f"- **{key_name}**: {item['context']}\n"
-        
-        md += "\n"
-        
-    return md
 
 def execute_history_tool(arguments: dict[str, Any]) -> str:
     user_id = arguments.get("userId")
@@ -203,7 +168,6 @@ def execute_history_tool(arguments: dict[str, Any]) -> str:
     provider = GitHubContentProvider(token)
 
     target_commit = commit
-    label = f"Since {since}" if since else f"Since commit {commit[:7] if commit else 'unknown'}"
 
     # Resolve commit if 'since' is provided
     if not target_commit and since:
@@ -215,9 +179,8 @@ def execute_history_tool(arguments: dict[str, Any]) -> str:
         # GitHub API 'until' param gets commits before a date.
         commits = provider.list_commits(until=iso_date, limit=1)
         if not commits:
-            return f"No commits found before {since} ({iso_date})."
+            return json.dumps({"error": f"No commits found before {since} ({iso_date})."}, ensure_ascii=False)
         target_commit = commits[0]['sha']
-        label = f"Since {since} ({target_commit[:7]})"
 
     files_to_analyze = [
         ("kernel/patterns.json", "Capabilities & Skills"),
@@ -252,4 +215,4 @@ def execute_history_tool(arguments: dict[str, Any]) -> str:
         if changes:
              report[category_label] = changes
     
-    return generate_rich_markdown(report, label)
+    return json.dumps(report, ensure_ascii=False)

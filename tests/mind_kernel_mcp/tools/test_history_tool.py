@@ -34,6 +34,18 @@ class TestHistoryTool(unittest.TestCase):
         self.assertEqual(add['type'], 'ADDED')
         self.assertEqual(add['value'], 'added')
 
+    def test_detailed_semantic_diff_removed(self):
+        old = {"a": 1, "b": 2}
+        new = {"a": 1}
+        
+        changes = detailed_semantic_diff(old, new)
+        
+        # removed b
+        rem = next((c for c in changes if c['key'] == 'b'), None)
+        self.assertIsNotNone(rem)
+        self.assertEqual(rem['type'], 'REMOVED')
+        self.assertEqual(rem['value'], 2)
+
     @patch('mind_kernel_mcp.tools.history_tool.DynamoDBSecretStore')
     @patch('mind_kernel_mcp.tools.history_tool.GitHubContentProvider')
     def test_execute_history_tool_commit(self, MockProvider, MockStore):
@@ -60,8 +72,15 @@ class TestHistoryTool(unittest.TestCase):
         result = execute_history_tool(args)
         
         # Verification
-        self.assertIn("Updates & Shifts", result)
-        self.assertIn("rust", result)
+        result_json = json.loads(result)
+        
+        # Check "Capabilities & Skills" exists
+        self.assertIn("Capabilities & Skills", result_json)
+        
+        # Check one of the changes involves "rust"
+        changes = result_json["Capabilities & Skills"]
+        rust_change = next((c for c in changes if "rust" in str(c)), None)
+        self.assertIsNotNone(rust_change)
 
     @patch('mind_kernel_mcp.tools.history_tool.DynamoDBSecretStore')
     @patch('mind_kernel_mcp.tools.history_tool.GitHubContentProvider')
@@ -93,8 +112,19 @@ class TestHistoryTool(unittest.TestCase):
         
         # Verification
         mock_provider.list_commits.assert_called_once()
-        self.assertIn("Updates & Shifts", result)
-        self.assertIn("courage", result)
+        
+        result_json = json.loads(result)
+        # We expect a change in one of the categories. "values" usually implies "Mindset & Values"
+        # But in the test setup, we just return that JSON for *any* file path?
+        # Ah, fetch_file(path) calls are made for 4 files. 
+        # The test mock returns the same content for all files.
+        # "kernel/identity.json" maps to "Mindset & Values".
+        
+        self.assertIn("Mindset & Values", result_json)
+        changes = result_json["Mindset & Values"]
+        
+        courage_change = next((c for c in changes if "courage" in str(c)), None)
+        self.assertIsNotNone(courage_change)
 
 if __name__ == '__main__':
     unittest.main()
