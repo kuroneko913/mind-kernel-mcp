@@ -94,7 +94,6 @@ make inspector
 
 ## プロジェクト構造
 - `mind_kernel_mcp/`: ソースコード。
-  - `server.py`: MCP サーバー定義。
   - `services/`: DynamoDB および GitHub サービス。
 - `infra/`: インフラストラクチャスクリプト (LocalStack 初期化)。
 - `scripts/`: ヘルパースクリプト (DB シード)。

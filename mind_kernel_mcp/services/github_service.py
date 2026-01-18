@@ -119,6 +119,27 @@ class GitHubContentProvider(ContentProvider):
         resp.raise_for_status()
         return resp.json()
 
+    def list_commits(self, path: Optional[str] = None, since: Optional[str] = None, until: Optional[str] = None, limit: int = 30) -> List[dict]:
+        """List commits for the repository, optionally filtering by path and date range.
+        Dates should be in ISO 8601 format: YYYY-MM-DDTHH:MM:SSZ
+        """
+        url = f"https://api.github.com/repos/{self.owner}/{self.repo}/commits"
+        headers = self._get_headers()
+        params = {
+            "per_page": limit
+        }
+        if path:
+            params["path"] = path
+        if since:
+            params["since"] = since
+        if until:
+            params["until"] = until
+            
+        resp = requests.get(url, headers=headers, params=params)
+        resp.raise_for_status()
+        return resp.json()
+
+
     def _insert_change_log_entry(self, current_logs: str, change_log_entry: str) -> str:
         """Insert change_log_entry after the ## [Unreleased] header if present, otherwise append at end."""
         lines = current_logs.splitlines()
