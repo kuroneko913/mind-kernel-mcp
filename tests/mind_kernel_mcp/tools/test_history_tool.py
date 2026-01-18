@@ -126,5 +126,43 @@ class TestHistoryTool(unittest.TestCase):
         courage_change = next((c for c in changes if "courage" in str(c)), None)
         self.assertIsNotNone(courage_change)
 
+    @patch('mind_kernel_mcp.tools.history_tool.DynamoDBSecretStore')
+    @patch('mind_kernel_mcp.tools.history_tool.GitHubContentProvider')
+    def test_execute_history_tool_filtering(self, MockProvider, MockStore):
+        # Setup mocks
+        mock_store = MockStore.return_value
+        mock_store.get_github_token.return_value = "fake_token"
+        
+        mock_provider = MockProvider.return_value
+        # Mocking fetch_file for specific files
+        def fetch_side_effect(path, ref=None):
+            if path == "kernel/backlog.json":
+                if ref == "commit_sha":
+                    return json.dumps({"active_issues": {"a": 1}})
+                else: # HEAD
+                    return json.dumps({"active_issues": {"a": 1, "b": 2}})
+            elif path == "kernel/patterns.json":
+                # Ensure this doesn't get analyzed if we filter
+                if ref == "commit_sha":
+                     return json.dumps({"skills": []})
+                else:
+                     return json.dumps({"skills": ["filtered_out"]})
+            return "{}"
+
+        mock_provider.fetch_file.side_effect = fetch_side_effect
+        
+        args = {
+            "userId": "test_user",
+            "commit": "commit_sha",
+            "categories": ["backlog"]
+        }
+        result = execute_history_tool(args)
+        result_json = json.loads(result)
+        
+        # Check Backlog exists
+        self.assertIn("Backlog & Tasks", result_json)
+        # Check Patterns does NOT exist
+        self.assertNotIn("Capabilities & Skills", result_json)
+
 if __name__ == '__main__':
     unittest.main()

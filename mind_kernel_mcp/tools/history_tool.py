@@ -18,6 +18,11 @@ HISTORY_TOOL_DEFINITION = {
             "commit": {
                 "type": "string",
                 "description": "Specific commit hash to compare against."
+            },
+            "categories": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Optional list of categories to analyze (e.g. ['backlog', 'meta']). Valid values: 'patterns', 'identity', 'meta', 'backlog'."
             }
         },
         "required": []
@@ -156,6 +161,7 @@ def execute_history_tool(arguments: dict[str, Any]) -> str:
     user_id = arguments.get("userId")
     since = arguments.get("since")
     commit = arguments.get("commit")
+    categories = arguments.get("categories")
 
     if not user_id:
         raise ValueError("userId is required")
@@ -182,12 +188,25 @@ def execute_history_tool(arguments: dict[str, Any]) -> str:
             return json.dumps({"error": f"No commits found before {since} ({iso_date})."}, ensure_ascii=False)
         target_commit = commits[0]['sha']
 
-    files_to_analyze = [
-        ("kernel/patterns.json", "Capabilities & Skills"),
-        ("kernel/identity.json", "Mindset & Values"),
-        ("kernel/meta.json", "System & Meta"),
-        ("kernel/backlog.json", "Backlog & Tasks"),
-    ]
+    # Map categories to file paths
+    # Label is used for JSON key in the report
+    category_map = {
+        "patterns": ("kernel/patterns.json", "Capabilities & Skills"),
+        "identity": ("kernel/identity.json", "Mindset & Values"),
+        "meta":     ("kernel/meta.json", "System & Meta"),
+        "backlog":  ("kernel/backlog.json", "Backlog & Tasks"),
+    }
+    
+    files_to_analyze = []
+    
+    if categories:
+        # Filter based on user input
+        for cat in categories:
+            if cat in category_map:
+                files_to_analyze.append(category_map[cat])
+    else:
+        # Default: analyze all
+        files_to_analyze = list(category_map.values())
 
     report = {}
 
