@@ -16,6 +16,15 @@ FETCH_GENERIC_TOOL_DEFINITION = {
             }
         },
         "required": ["filePath"]
+    },
+    "annotations": {
+        "priority": 0.5,
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "openWorldHint": False
+    },
+    "_meta": {
+        "openai/isConsequential": False
     }
 }
 
@@ -51,10 +60,22 @@ def _create_fetch_facade_definition(key: str, config: dict) -> dict:
             "type": "object",
             "properties": {},
             "required": []
+        },
+        "annotations": {
+            "priority": 0.5,
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "openWorldHint": False
+        },
+        "_meta": {
+            "openai/isConsequential": False
         }
     }
     if "_meta" in config:
-        tool_def["_meta"] = config["_meta"]
+        # Merge or override defaults
+        if "_meta" not in tool_def:
+             tool_def["_meta"] = {}
+        tool_def["_meta"].update(config["_meta"])
     return tool_def
 
 def _create_fetch_executor(file_path: str) -> Callable[[dict[str, Any]], str]:

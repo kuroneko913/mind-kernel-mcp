@@ -26,6 +26,15 @@ HISTORY_TOOL_DEFINITION = {
             }
         },
         "required": []
+    },
+    "annotations": {
+        "priority": 0.5,
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "openWorldHint": False
+    },
+    "_meta": {
+        "openai/isConsequential": False
     }
 }
 

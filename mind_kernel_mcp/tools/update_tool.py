@@ -42,6 +42,15 @@ UPDATE_GENERIC_TOOL_DEFINITION = {
             }
         },
         "required": ["version", "jsonPatch", "commitMessage"]
+    },
+    "annotations": {
+        "priority": 0.5,
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "openWorldHint": False
+    },
+    "_meta": {
+        "openai/isConsequential": True
     }
 }
 
@@ -133,6 +142,15 @@ def _create_update_facade_definition(key: str, config: dict) -> dict:
                 "prNumber": { "type": "integer", "description": "Optional PR number to update specific PR." }
             },
             "required": ["version", "jsonPatch", "commitMessage"]
+        },
+        "annotations": {
+            "priority": 0.5,
+            "readOnlyHint": False,
+            "destructiveHint": True,
+            "openWorldHint": False
+        },
+        "_meta": {
+            "openai/isConsequential": True
         }
     }
 
