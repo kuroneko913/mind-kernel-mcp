@@ -30,3 +30,7 @@ stderr.txt
 
 # MCP
 .cursor/
+
+# Web dependencies & build
+web/node_modules/
+web/dist/
