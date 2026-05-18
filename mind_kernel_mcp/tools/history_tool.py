@@ -4,6 +4,11 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from mind_kernel_mcp.services import DynamoDBSecretStore, GitHubContentProvider
 
+# Security limits
+_MAX_LOOKBACK_DAYS = 730  # max 2 years
+_MAX_CATEGORIES = 4
+_MAX_CONTENT_BYTES = 512 * 1024  # 512 KB per file
+
 HISTORY_TOOL_NAME = "fetch_mind_kernel_history"
 HISTORY_TOOL_DEFINITION = {
     "name": HISTORY_TOOL_NAME,
@@ -178,6 +183,27 @@ def execute_history_tool(arguments: dict[str, Any]) -> str:
     if not since and not commit:
         raise ValueError("Either 'since' or 'commit' must be provided.")
 
+    # Security: validate categories count (DoS mitigation)
+    if categories and len(categories) > _MAX_CATEGORIES:
+        raise ValueError(f"Too many categories requested. Maximum is {_MAX_CATEGORIES}.")
+
+    # Security: validate 'since' date is not too far in the past (DoS mitigation)
+    if since:
+        iso_date_check = _parse_relative_date(since)
+        try:
+            JST = timezone(timedelta(hours=9))
+            parsed_dt = datetime.fromisoformat(iso_date_check.rstrip("Z")).replace(tzinfo=timezone.utc)
+            min_allowed = datetime.now(timezone.utc) - timedelta(days=_MAX_LOOKBACK_DAYS)
+            if parsed_dt < min_allowed:
+                raise ValueError(
+                    f"'since' date is too far in the past. "
+                    f"Maximum lookback is {_MAX_LOOKBACK_DAYS} days."
+                )
+        except (ValueError, TypeError) as e:
+            if "too far" in str(e):
+                raise
+            # If parsing fails, let the API handle it
+
     secret_store = DynamoDBSecretStore()
     token = secret_store.get_github_token(user_id)
     provider = GitHubContentProvider(token)
@@ -223,16 +249,21 @@ def execute_history_tool(arguments: dict[str, Any]) -> str:
         try:
             # Old data
             old_content_str = provider.fetch_file(file_path, ref=target_commit)
-            old_json = json.loads(old_content_str)
-        except Exception as e:
-            # File might not have existed or error fetching
+            # Security: guard against unexpectedly large files (DoS mitigation)
+            if len(old_content_str.encode("utf-8")) > _MAX_CONTENT_BYTES:
+                old_json = {}
+            else:
+                old_json = json.loads(old_content_str)
+        except Exception:
             old_json = {}
-            # print(f"Warning: Could not fetch {file_path} at {target_commit}: {e}")
 
         try:
             # New data (HEAD)
-            new_content_str = provider.fetch_file(file_path) # Default to HEAD
-            new_json = json.loads(new_content_str)
+            new_content_str = provider.fetch_file(file_path)  # Default to HEAD
+            if len(new_content_str.encode("utf-8")) > _MAX_CONTENT_BYTES:
+                new_json = {}
+            else:
+                new_json = json.loads(new_content_str)
         except Exception:
             new_json = {}
         

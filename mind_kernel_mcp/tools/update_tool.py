@@ -3,6 +3,9 @@ from typing import Any, Callable
 from mind_kernel_mcp.services import DynamoDBSecretStore, GitHubContentProvider
 from .config import KERNEL_FILES
 
+# Allowed file paths (whitelist) derived from KERNEL_FILES config
+ALLOWED_FILE_PATHS = {cfg["path"] for cfg in KERNEL_FILES.values()}
+
 # Generic Tool Definition (Internal)
 UPDATE_GENERIC_TOOL_NAME = "update_mind_kernel_file"
 UPDATE_GENERIC_TOOL_DEFINITION = {
@@ -63,6 +66,12 @@ def _execute_update_logic(arguments: dict[str, Any], file_path: str = None) -> s
         raise ValueError("userId is required")
     if not file_path:
         raise ValueError("filePath is required")
+    # Security: whitelist check — only allow paths defined in KERNEL_FILES
+    if file_path not in ALLOWED_FILE_PATHS:
+        raise ValueError(
+            f"filePath '{file_path}' is not allowed. "
+            f"Permitted paths: {sorted(ALLOWED_FILE_PATHS)}"
+        )
     if not commit_message:
         raise ValueError("commitMessage is required")
     if not json_patch:

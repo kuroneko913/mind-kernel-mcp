@@ -1,6 +1,7 @@
 import json
 import os
 import asyncio
+import logging
 import jwt
 from typing import Dict, Any, Callable, Optional, List
 from jwt import PyJWKClient
@@ -9,6 +10,14 @@ from starlette.routing import Route
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response, StreamingResponse, PlainTextResponse
 import hmac
+
+# Structured logging — controlled via LOG_LEVEL env var (DEBUG, INFO, WARNING, ERROR)
+_log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(
+    level=getattr(logging, _log_level, logging.INFO),
+    format="%(levelname)s %(name)s: %(message)s"
+)
+logger = logging.getLogger("mcp.server")
 
 class ServerlessMcpServer:
     def __init__(self, name: str = "mcp-server", version: str = "1.0.0"):
@@ -37,6 +46,11 @@ class ServerlessMcpServer:
     def _get_jwks_url(self):
         region = os.environ.get("AWS_REGION", "ap-northeast-1")
         user_pool_id = os.environ.get("COGNITO_USER_POOL_ID")
+        if not user_pool_id:
+            raise ValueError(
+                "COGNITO_USER_POOL_ID environment variable is not set. "
+                "JWT authentication cannot be configured."
+            )
         return f"https://cognito-idp.{region}.amazonaws.com/{user_pool_id}/.well-known/jwks.json"
 
     def verify_token(self, request: Request) -> Optional[str]:
@@ -46,7 +60,7 @@ class ServerlessMcpServer:
 
         # 1. API Key Auth
         if env_api_key and api_key_header and hmac.compare_digest(api_key_header, env_api_key):
-            print("DEBUG: Authenticated via X-API-Key")
+            logger.debug("Authenticated via X-API-Key")
             return os.environ.get("LOCAL_USER_ID")
         
         # 2. JWT Auth (Cognito)
@@ -58,7 +72,7 @@ class ServerlessMcpServer:
         try:
             if self.jwks_client is None:
                 url = self._get_jwks_url()
-                print(f"DEBUG: Initializing JWKS Client with {url}")
+                logger.debug("Initializing JWKS Client")
                 self.jwks_client = PyJWKClient(url)
 
             signing_key = self.jwks_client.get_signing_key_from_jwt(token)
@@ -70,7 +84,7 @@ class ServerlessMcpServer:
             )
             return data.get("sub")
         except Exception as e:
-            print(f"WARN: Token verification failed: {e}")
+            logger.warning("Token verification failed: %s", type(e).__name__)
             return None
 
     async def handle_sse(self, request: Request):
@@ -78,12 +92,12 @@ class ServerlessMcpServer:
         if not user_id and os.environ.get("ALLOW_DEBUG_AUTH") == "true":
             user_id = os.environ.get("DEBUG_USER_ID")
             if user_id:
-                print(f"DEBUG: Using fallback userId in SSE: {user_id}")
+                logger.debug("Using fallback userId in SSE")
 
         if not user_id:
             return JSONResponse({"error": "Unauthorized"}, status_code=401)
             
-        print(f"DEBUG: SSE connection for user={user_id}")
+        logger.debug("SSE connection for user=%s", user_id)
 
         async def event_generator():
             yield "event: endpoint\ndata: /messages\n\n"
@@ -204,7 +218,8 @@ class ServerlessMcpServer:
         method = body.get("method")
         params = body.get("params", {})
 
-        print(f"DEBUG: RPC method={method} params={params}")
+        # Log method only — do NOT log params (may contain sensitive data)
+        logger.debug("RPC method=%s", method)
         
         response_data = {
             "jsonrpc": "2.0",
@@ -217,11 +232,11 @@ class ServerlessMcpServer:
             if not user_id and os.environ.get("ALLOW_DEBUG_AUTH") == "true":
                 user_id = os.environ.get("DEBUG_USER_ID")
                 if user_id:
-                    print(f"DEBUG: Using fallback userId: {user_id}")
+                    logger.debug("Using fallback userId")
 
             PUBLIC_METHODS = ["initialize", "ping", "notifications/initialized"]
             if not user_id and method not in PUBLIC_METHODS:
-                print(f"WARN: Unauthorized attempt to call {method}")
+                logger.warning("Unauthorized attempt to call %s", method)
                 return JSONResponse({
                     "jsonrpc": "2.0",
                     "error": {"code": -32001, "message": "Unauthorized: Missing valid authentication token"},
@@ -229,7 +244,7 @@ class ServerlessMcpServer:
                 }, status_code=401)
 
             if user_id:
-                print(f"DEBUG: Authenticated userId: {user_id}")
+                logger.debug("Authenticated userId: %s", user_id)
 
             result = await self.dispatch_rpc(method, params, user_id)
             
@@ -260,16 +275,16 @@ class ServerlessMcpServer:
             }
             
         except Exception as e:
-            print(f"ERROR: {e}")
+            logger.error("Unhandled error processing RPC: %s", type(e).__name__)
             response_data["error"] = {
                 "code": -32603,
-                "message": f"Internal error: {str(e)}"
+                "message": "Internal server error"
             }
 
         return JSONResponse(response_data)
 
     async def oauth_discovery(self, request: Request):
-        print("DEBUG: oauth_discovery called")
+        logger.debug("oauth_discovery called")
         region = os.environ.get("AWS_REGION", "ap-northeast-1")
         user_pool_id = os.environ.get("COGNITO_USER_POOL_ID")
         
@@ -291,6 +306,7 @@ class ServerlessMcpServer:
         return PlainTextResponse(token)
 
     def create_app(self) -> Starlette:
+        debug_mode = os.environ.get("DEBUG", "").lower() in ("1", "true", "yes")
         app = Starlette(
             routes=[
                 Route("/.well-known/openai-apps-challenge", endpoint=self.openai_verification, methods=["GET"]),
@@ -299,6 +315,6 @@ class ServerlessMcpServer:
                 Route("/sse", endpoint=self.handle_sse, methods=["GET", "POST"]), 
                 Route("/", endpoint=self.handle_rpc, methods=["POST"]),
             ],
-            debug=True
+            debug=debug_mode
         )
         return app
