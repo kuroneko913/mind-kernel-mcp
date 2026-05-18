@@ -90,7 +90,8 @@ def deploy_lambda():
         "AWS_ENDPOINT_URL": os.getenv("AWS_ENDPOINT_URL_LAMBDA", "http://localstack:4566"),
         # Auth Config
         "MCP_API_KEY": os.getenv("MCP_API_KEY", ""),
-        "LOCAL_USER_ID": os.getenv("USER_ID", "") # Using USER_ID from .env/compose as LOCAL_USER_ID
+        "LOCAL_USER_ID": os.getenv("USER_ID", ""), # Using USER_ID from .env/compose as LOCAL_USER_ID
+        "OPENAI_VERIFICATION_TOKEN": os.getenv("OPENAI_VERIFICATION_TOKEN", "")
     }
 
     try:

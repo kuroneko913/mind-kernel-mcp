@@ -21,6 +21,10 @@ Parameters:
   LocalUserId:
     Type: String
     Description: User ID to use when authenticating with API Key (e.g. for local dev)
+  OpenAIVerificationToken:
+    Type: String
+    Description: Token for ChatGPT domain verification
+    Default: ""
 
 Resources:
   # DynamoDB Table for User Secrets (userId -> githubToken)
@@ -110,6 +114,7 @@ Resources:
           MCP_API_KEY: !Ref McpApiKey
           LOCAL_USER_ID: !Ref LocalUserId
           COGNITO_USER_POOL_ID: !Ref MindKernelUserPool
+          OPENAI_VERIFICATION_TOKEN: !Ref OpenAIVerificationToken
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref UserSecrets

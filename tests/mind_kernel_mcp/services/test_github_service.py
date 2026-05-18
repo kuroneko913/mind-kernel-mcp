@@ -72,20 +72,7 @@ def test_update_file_existing(provider):
         mock_get.assert_called_once()
         mock_put.assert_called_once()
 
-def test_insert_change_log_entry_with_unreleased(provider):
-    current = "# Changelog\n\n## [Unreleased]\n\n- Some change"
-    entry = "- New entry"
-    new_log = provider._insert_change_log_entry(current, entry)
-    # The new entry should appear directly after the Unreleased header
-    expected = "# Changelog\n\n## [Unreleased]\n\n- New entry\n\n- Some change"
-    assert new_log.strip() == expected.strip()
 
-def test_insert_change_log_entry_without_unreleased(provider):
-    current = "# Changelog\n\n- Old entry"
-    entry = "- New entry"
-    new_log = provider._insert_change_log_entry(current, entry)
-    expected = "# Changelog\n\n- Old entry\n\n- New entry"
-    assert new_log.strip() == expected.strip()
 
 def test_prepare_new_content_with_json_patch(provider):
     original = {"a": 1, "b": 2}
@@ -120,20 +107,17 @@ def test_propose_update_flow(provider):
          patch.object(provider, "_prepare_new_content", return_value="new content") as mock_prepare, \
          patch.object(provider, "_validate_update_params") as mock_validate, \
          patch.object(provider, "_update_target_file") as mock_update_target, \
-         patch.object(provider, "_update_change_log") as mock_update_log, \
          patch.object(provider, "_create_pr", return_value={"html_url": "http://github.com/pr/1"}) as mock_create_pr:
         result = provider.propose_update(
             path="core.json",
             commit_message="test commit",
-            content="new content",
-            change_log_entry="- added"
+            content="new content"
         )
         assert result == {"html_url": "http://github.com/pr/1"}
         mock_branch.assert_called_once_with("core.json")
         mock_prepare.assert_called_once_with("core.json", "new content", None, "test-branch")
         mock_validate.assert_called_once()
         mock_update_target.assert_called_once()
-        mock_update_log.assert_called_once()
         mock_create_pr.assert_called_once()
 
 def test_propose_update_with_pr_number(provider):

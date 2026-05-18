@@ -31,5 +31,6 @@ services:
       - AWS_ENDPOINT_URL_LAMBDA=http://localstack:4566
       - USER_ID=${USER_ID}
       - MCP_API_KEY=${MCP_API_KEY}
+      - OPENAI_VERIFICATION_TOKEN=${OPENAI_VERIFICATION_TOKEN:-}
     depends_on:
       - localstack

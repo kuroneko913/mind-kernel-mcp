@@ -15,10 +15,9 @@ Mind Kernel はプライベートリポジトリで管理されますが、MCP�
 - 固有名詞は役割名（例: Aさん→チームリーダー）に置換する。
 - 具体的なエピソードは「パターン」として一般化する。
 
-### 2.2. Dual Versioning (二重のバージョニング)
-データの整合性を保つため、二種類のバージョン管理を採用しています。
-1.  **Semantic Versioning**: 各JSONファイル内部に `version` フィールドを持ち、内容の変更を追跡します。
-2.  **Git Tagging**: GitHub上のリリース/タグ機能を利用し、カーネル全体の「ある時点でのスナップショット」を保存します。これにより、思考の特定の時点へのロールバックや参照を可能にします。
+### 2.2. Versioning Strategy (バージョニング戦略)
+データの整合性を保つため、以下のバージョン管理を採用しています。
+- **Git Tagging**: GitHub上のリリース/タグ機能を利用し、カーネル全体の「ある時点でのスナップショット」を保存します。これにより、思考の特定の時点へのロールバックや参照を可能にします。
 
 ### 2.3. Operational Transparency (運用の透明性)
 AIによる更新提案は必ず **Pull Request** の形で行われます。
@@ -41,7 +40,7 @@ Mind Kernel を構成する4つの主要モジュールに対し、**読み取�
 ### 3.2. Secure Tools
 全ての操作は MCP Tool として提供されます。
 - `fetch_mind_kernel_{module}`: 最新のJSONコンテンツを取得します。
-- `update_mind_kernel_{module}`: 内容の変更を Pull Request として提案します。JSON Patch による差分更新に対応しており、変更履歴（ChangeLogs.md）の自動更新も行います。
+- `update_mind_kernel_{module}`: 内容の変更を Pull Request として提案します。JSON Patch による差分更新に対応しています。
 
 ## 4. アーキテクチャ (Architecture)
 

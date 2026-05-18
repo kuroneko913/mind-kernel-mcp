@@ -42,6 +42,8 @@ async def handle_tools_call(params: Dict[str, Any], user_id: Optional[str]) -> D
 
     name = params.get("name")
     args = params.get("arguments", {})
+    if not isinstance(args, dict):
+        raise ValueError("Invalid format: 'arguments' must be a JSON object")
     
     # Inject user_id
     args["userId"] = user_id
@@ -105,7 +107,7 @@ async def handle_resources_read(params: Dict[str, Any], user_id: Optional[str]) 
             with open(os.path.join(base_path, "widget.js"), "r", encoding="utf-8") as f:
                 js_content = f.read()
         except FileNotFoundError:
-            raise ValueError(f"Server error: widget.js not found at {base_path}")
+            raise ValueError("Internal error: Required widget assets not found.")
 
         css_content = ""
         css_path = os.path.join(base_path, "widget.css")
@@ -146,6 +148,8 @@ async def handle_prompts_get(params: Dict[str, Any], user_id: Optional[str]) -> 
 
     name = params.get("name")
     args = params.get("arguments", {})
+    if not isinstance(args, dict):
+        raise ValueError("Invalid format: 'arguments' must be a JSON object")
     
     result = await handle_get_prompt(name, args, user_id)
     return result.model_dump()

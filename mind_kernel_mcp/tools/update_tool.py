@@ -15,10 +15,6 @@ UPDATE_GENERIC_TOOL_DEFINITION = {
                 "type": "string",
                 "description": "Path to the file to update."
             },
-            "version": {
-                "type": "string",
-                "description": "Version identifier to set in the target file (e.g., 'v1.2.3')."
-            },
             "jsonPatch": {
                 "type": "array",
                 "items": { "type": "object" },
@@ -27,10 +23,6 @@ UPDATE_GENERIC_TOOL_DEFINITION = {
             "commitMessage": {
                 "type": "string",
                 "description": "Commit message for the Pull Request."
-            },
-            "changeLogEntry": {
-                "type": "string",
-                "description": "Optional ChangeLogs.md entry; if omitted a default entry based on version will be generated."
             },
             "prBody": {
                 "type": "string",
@@ -41,7 +33,7 @@ UPDATE_GENERIC_TOOL_DEFINITION = {
                 "description": "Optional PR number. If provided, updates the existing PR instead of creating a new one."
             }
         },
-        "required": ["version", "jsonPatch", "commitMessage"]
+        "required": ["jsonPatch", "commitMessage"]
     },
     "annotations": {
         "priority": 0.5,
@@ -62,11 +54,8 @@ def _execute_update_logic(arguments: dict[str, Any], file_path: str = None) -> s
     if not file_path:
         file_path = arguments.get("filePath")
 
-    version = arguments.get("version")
     json_patch = arguments.get("jsonPatch")
     commit_message = arguments.get("commitMessage")
-    change_log_entry = arguments.get("changeLogEntry")
-    change_log_entry = arguments.get("changeLogEntry")
     pr_body = arguments.get("prBody")
     pr_number = arguments.get("prNumber")
 
@@ -74,29 +63,19 @@ def _execute_update_logic(arguments: dict[str, Any], file_path: str = None) -> s
         raise ValueError("userId is required")
     if not file_path:
         raise ValueError("filePath is required")
-    if not version:
-        raise ValueError("version is required")
     if not commit_message:
         raise ValueError("commitMessage is required")
     if not json_patch:
         raise ValueError("jsonPatch is required")
-
-    # Ensure version update is included in jsonPatch
-    version_patch_exists = any(op.get("path") == "/version" for op in json_patch)
-    if version and not version_patch_exists:
-        json_patch.append({
-            "op": "replace",
-            "path": "/version",
-            "value": version
-        })
-
-    # Auto-generate changeLogEntry if not supplied
-    if not change_log_entry:
-        change_log_entry = f"## [{version}] Update\n- Updated {file_path} version to {version}"
+    if not isinstance(json_patch, list):
+        raise ValueError("jsonPatch must be a list of JSON Patch operations")
+    for op in json_patch:
+        if not isinstance(op, dict):
+            raise ValueError("Each item in jsonPatch must be a JSON object")
 
     # Auto-generate PR body if not supplied
     if not pr_body:
-        pr_body = f"Update {file_path} to version {version}."
+        pr_body = f"Update {file_path} via Mind Kernel MCP."
 
     secret_store = DynamoDBSecretStore()
     token = secret_store.get_github_token(user_id)
@@ -107,7 +86,6 @@ def _execute_update_logic(arguments: dict[str, Any], file_path: str = None) -> s
         commit_message, 
         content=None, 
         json_patch=json_patch,
-        change_log_entry=change_log_entry,
         pr_body=pr_body,
         pr_number=pr_number
     )
@@ -134,14 +112,12 @@ def _create_update_facade_definition(key: str, config: dict) -> dict:
         "inputSchema": {
             "type": "object",
             "properties": {
-                "version": { "type": "string", "description": "Version identifier to set (e.g., 'v1.2.3')." },
                 "jsonPatch": { "type": "array", "items": { "type": "object" }, "description": "JSON Patch operations." },
                 "commitMessage": { "type": "string", "description": "Commit message for the Pull Request." },
-                "changeLogEntry": { "type": "string", "description": "Optional ChangeLogs.md entry." },
                 "prBody": { "type": "string", "description": "Optional PR body." },
                 "prNumber": { "type": "integer", "description": "Optional PR number to update specific PR." }
             },
-            "required": ["version", "jsonPatch", "commitMessage"]
+            "required": ["jsonPatch", "commitMessage"]
         },
         "annotations": {
             "priority": 0.5,

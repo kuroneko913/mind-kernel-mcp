@@ -32,7 +32,8 @@ def verify_token(request: Request):
     env_api_key = os.environ.get("MCP_API_KEY")
 
     # 1. API Key Auth (Simpler, for local tools)
-    if env_api_key and api_key_header == env_api_key:
+    import hmac
+    if env_api_key and api_key_header and hmac.compare_digest(api_key_header, env_api_key):
         print("DEBUG: Authenticated via X-API-Key")
         # Use a fixed debug user ID for API Key access
         return os.environ.get("LOCAL_USER_ID")
@@ -71,7 +72,13 @@ async def handle_sse(request: Request):
     Yields the 'endpoint' event to tell the client where to post messages.
     """
     user_id = verify_token(request)
-    if not user_id and not os.environ.get("DEBUG_USER_ID"):
+    # Only allow fallback if explicitly enabled
+    if not user_id and os.environ.get("ALLOW_DEBUG_AUTH") == "true":
+        user_id = os.environ.get("DEBUG_USER_ID")
+        if user_id:
+            print(f"DEBUG: Using fallback userId in SSE: {user_id}")
+
+    if not user_id:
         return JSONResponse({"error": "Unauthorized"}, status_code=401)
         
     print(f"DEBUG: SSE connection for user={user_id}")
@@ -114,16 +121,23 @@ async def handle_rpc(request: Request):
         # Authentication extraction (performed once for all methods)
         user_id = verify_token(request)
         
-        # Fallback for local development
-        if not user_id:
+        # Fallback for local development - ONLY if explicitly allowed
+        if not user_id and os.environ.get("ALLOW_DEBUG_AUTH") == "true":
             user_id = os.environ.get("DEBUG_USER_ID")
             if user_id:
                 print(f"DEBUG: Using fallback userId: {user_id}")
-            else:
-                pass 
-                # Don't log failure yet, as some methods (initialize) don't need it.
-                # Handlers will check.
-        else:
+
+        # Enforce authentication for all methods except initialize and ping
+        PUBLIC_METHODS = ["initialize", "ping", "notifications/initialized"]
+        if not user_id and method not in PUBLIC_METHODS:
+            print(f"WARN: Unauthorized attempt to call {method}")
+            return JSONResponse({
+                "jsonrpc": "2.0",
+                "error": {"code": -32001, "message": "Unauthorized: Missing valid authentication token"},
+                "id": request_id
+            }, status_code=401)
+
+        if user_id:
             print(f"DEBUG: Authenticated userId: {user_id}")
 
         result = await dispatch_rpc(method, params, user_id)
@@ -225,7 +239,8 @@ def openai_verification(request):
     """
     Handle ChatGPT domain verification.
     """
-    return PlainTextResponse("deZkwHsP3CxBdkiGZphMrsfXatOAd99KY1Nh8C1AgYg")
+    token = os.environ.get("OPENAI_VERIFICATION_TOKEN", "")
+    return PlainTextResponse(token)
 
 
 app = Starlette(

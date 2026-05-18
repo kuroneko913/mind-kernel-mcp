@@ -140,26 +140,6 @@ class GitHubContentProvider(ContentProvider):
         return resp.json()
 
 
-    def _insert_change_log_entry(self, current_logs: str, change_log_entry: str) -> str:
-        """Insert change_log_entry after the ## [Unreleased] header if present, otherwise append at end."""
-        lines = current_logs.splitlines()
-        insert_idx = None
-        for i, line in enumerate(lines):
-            if line.strip().lower() == "## [unreleased]":
-                insert_idx = i
-                break
-        if insert_idx is not None:
-            # Content before and after the header line
-            before = "\n".join(lines[:insert_idx + 1])
-            after = "\n".join(lines[insert_idx + 1:])
-            # Remove a leading newline from after to avoid duplicate blank lines
-            after = after.lstrip("\n")
-            new_entry = "\n\n" + change_log_entry.strip() + "\n\n"
-            change_log_new_entry = before + new_entry + after
-        else:
-            change_log_new_entry = current_logs + "\n\n" + change_log_entry.strip() + "\n"
-        return change_log_new_entry
-
     def _create_work_branch(self, path: str) -> tuple[str, str]:
         """Creates a new branch for the proposed update."""
         default_branch = self.get_default_branch()
@@ -185,17 +165,6 @@ class GitHubContentProvider(ContentProvider):
             return content
         else:
             raise ValueError("Either content or json_patch must be provided.")
-
-    def _update_change_log(self, change_log_entry: str, commit_message: str, branch_name: str):
-        """Updates the ChangeLogs.md file with a new entry."""
-        log_path = "ChangeLogs.md"
-        try:
-            current_logs = self.fetch_file(log_path, ref=branch_name)
-        except FileNotFoundError:
-            current_logs = "# Change Logs\n"
-        
-        new_logs = self._insert_change_log_entry(current_logs, change_log_entry)
-        self.update_file(log_path, new_logs, f"Update {log_path} for {commit_message}", branch=branch_name)
 
     def _create_pr(self, path: str, commit_message: str, pr_body: Optional[str], branch_name: str, default_branch: str) -> dict:
         """Creates a pull request for the changes."""
@@ -227,7 +196,7 @@ class GitHubContentProvider(ContentProvider):
         resp.raise_for_status()
         return resp.json()
 
-    def propose_update(self, path: str, commit_message: str, content: Optional[str] = None, json_patch: Optional[List[dict]] = None, change_log_entry: Optional[str] = None, pr_body: Optional[str] = None, pr_number: Optional[int] = None) -> dict:
+    def propose_update(self, path: str, commit_message: str, content: Optional[str] = None, json_patch: Optional[List[dict]] = None, pr_body: Optional[str] = None, pr_number: Optional[int] = None) -> dict:
         
         if pr_number:
             # Update existing PR
@@ -248,11 +217,7 @@ class GitHubContentProvider(ContentProvider):
         # 4. Update file (on the branch)
         self._update_target_file(path, new_content_str, commit_message, branch_name)
 
-        # 5. Update ChangeLogs.md (if specified)
-        if change_log_entry:
-            self._update_change_log(change_log_entry, commit_message, branch_name)
-
-        # 6. Create Pull Request (only if new)
+        # 5. Create Pull Request (only if new)
         if not pr_number:
             pr = self._create_pr(path, commit_message, pr_body, branch_name, default_branch)
         else:
