@@ -19,4 +19,4 @@ COPY . .
 RUN pip install --no-cache-dir -e .[dev]
 
 # 6. Run uvicorn
-CMD ["uvicorn", "mind_kernel_mcp.sse:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uvicorn", "mind_kernel_mcp.main:app", "--host", "0.0.0.0", "--port", "8080"]

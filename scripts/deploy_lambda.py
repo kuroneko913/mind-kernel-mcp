@@ -112,7 +112,7 @@ def deploy_lambda():
                     client.update_function_configuration(
                         FunctionName=function_name,
                         Environment={"Variables": env_vars},
-                        Handler="mind_kernel_mcp.sse.handler" # Ensure handler is updated here too? No, mainly env vars. But handler is part of config.
+                        Handler="mind_kernel_mcp.main.handler" # Ensure handler is updated here too? No, mainly env vars. But handler is part of config.
                         # Wait, update_function_configuration DOES take Handler. 
                         # We should update Handler here too to be safe if it wasn't set correctly before.
                     )
@@ -128,7 +128,7 @@ def deploy_lambda():
                 FunctionName=function_name,
                 Runtime="python3.12",
                 Role="arn:aws:iam::000000000000:role/lambda-role",
-                Handler="mind_kernel_mcp.sse.handler",
+                Handler="mind_kernel_mcp.main.handler",
                 Code={"ZipFile": zip_content},
                 Environment={"Variables": env_vars},
                 Timeout=30,
