@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 import json
-from mind_kernel_mcp.rpc_handlers import handle_tools_call
+from mind_kernel_mcp.main import server
 
 class TestFetchToolRPCIntegration(unittest.IsolatedAsyncioTestCase):
     """
@@ -26,7 +26,7 @@ class TestFetchToolRPCIntegration(unittest.IsolatedAsyncioTestCase):
         }
         user_id = "integration_test_user_fetch"
 
-        result_dict = await handle_tools_call(params, user_id)
+        result_dict = await server.dispatch_rpc("tools/call", params, user_id)
 
         # --- Verify ---
         # 1. Check RPC structure

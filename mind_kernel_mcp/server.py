@@ -274,6 +274,13 @@ class ServerlessMcpServer:
                 "message": msg
             }
             
+        except PermissionError as pe:
+            logger.warning("Permission error during RPC processing: %s", str(pe))
+            response_data["error"] = {
+                "code": -32001,
+                "message": str(pe)
+            }
+            
         except Exception as e:
             logger.error("Unhandled error processing RPC: %s", type(e).__name__)
             response_data["error"] = {

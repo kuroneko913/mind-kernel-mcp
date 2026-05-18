@@ -20,7 +20,7 @@ def test_execute_update_generic_tool_success(MockStore, MockProvider):
     # Execute
     args = {
         "userId": "user123",
-        "filePath": "path/file.json",
+        "filePath": "kernel/patterns.json",
         "jsonPatch": [{"op": "replace", "path": "/foo", "value": "bar"}],
         "commitMessage": "test commit",
         "prBody": "my pr body"
@@ -32,7 +32,7 @@ def test_execute_update_generic_tool_success(MockStore, MockProvider):
     assert "http://github.com/pr/42" in result
     
     mock_provider_instance.propose_update.assert_called_once_with(
-        "path/file.json",
+        "kernel/patterns.json",
         "test commit",
         content=None,
         json_patch=[{"op": "replace", "path": "/foo", "value": "bar"}],
@@ -47,7 +47,7 @@ def test_execute_update_generic_tool_validation():
             execute_update_generic_tool(args)
 
     base = {
-        "userId": "u", "filePath": "f",
+        "userId": "u", "filePath": "kernel/patterns.json",
         "jsonPatch": [], "commitMessage": "m"
     }
 

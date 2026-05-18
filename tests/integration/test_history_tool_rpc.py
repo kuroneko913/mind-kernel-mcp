@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 import json
-from mind_kernel_mcp.rpc_handlers import handle_tools_call
+from mind_kernel_mcp.main import server
 
 class TestHistoryToolRPCIntegration(unittest.IsolatedAsyncioTestCase):
     """
@@ -39,7 +39,7 @@ class TestHistoryToolRPCIntegration(unittest.IsolatedAsyncioTestCase):
         user_id = "integration_test_user"
 
         # handle_tools_call is async
-        result_dict = await handle_tools_call(params, user_id)
+        result_dict = await server.dispatch_rpc("tools/call", params, user_id)
 
         # --- Verify ---
         # 1. Check RPC structure
@@ -53,8 +53,8 @@ class TestHistoryToolRPCIntegration(unittest.IsolatedAsyncioTestCase):
         mock_store.get_github_token.assert_called_with(user_id)
 
         # 3. Check Response Content
-        # We expect "Updates & Shifts" (MODIFIED) for skills changing from python->python,rust
-        self.assertIn("Updates & Shifts", text_content)
+        # We expect "Capabilities & Skills" (MODIFIED) for skills changing from python->python,rust
+        self.assertIn("Capabilities & Skills", text_content)
         self.assertIn("rust", text_content)
 
 if __name__ == '__main__':
