@@ -25,6 +25,13 @@ Parameters:
     Type: String
     Description: Token for ChatGPT domain verification
     Default: ""
+  AdditionalCognitoClientIds:
+    Type: String
+    Description: Comma-separated extra Cognito app client IDs whose tokens are accepted (e.g. a client created for a specific MCP connector)
+    Default: ""
+
+Conditions:
+  HasAdditionalCognitoClientIds: !Not [!Equals [!Ref AdditionalCognitoClientIds, ""]]
 
 Resources:
   # DynamoDB Table for User Secrets (userId -> githubToken)
@@ -45,6 +52,10 @@ Resources:
     Type: AWS::Cognito::UserPool
     Properties:
       UserPoolName: !Sub ${AWS::StackName}-user-pool
+      # Personal server: users are created by the admin only (no self sign-up
+      # from the hosted UI, whose domain is derivable from the account ID).
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
       AutoVerifiedAttributes:
         - email
       Schema:
@@ -102,6 +113,9 @@ Resources:
         - arm64
       MemorySize: 256
       Timeout: 180 # Longer timeout for SSE
+      # Cost ceiling for the public Function URL: requests beyond this many
+      # concurrent executions are throttled (429) instead of billed.
+      ReservedConcurrentExecutions: 5
       FunctionUrlConfig:
         AuthType: NONE
         InvokeMode: RESPONSE_STREAM
@@ -114,7 +128,10 @@ Resources:
           MCP_API_KEY: !Ref McpApiKey
           LOCAL_USER_ID: !Ref LocalUserId
           COGNITO_USER_POOL_ID: !Ref MindKernelUserPool
-          COGNITO_CLIENT_ID: !Ref MindKernelUserPoolClient
+          COGNITO_CLIENT_ID: !If
+            - HasAdditionalCognitoClientIds
+            - !Sub "${MindKernelUserPoolClient},${AdditionalCognitoClientIds}"
+            - !Ref MindKernelUserPoolClient
           OPENAI_VERIFICATION_TOKEN: !Ref OpenAIVerificationToken
       Policies:
         - DynamoDBCrudPolicy:

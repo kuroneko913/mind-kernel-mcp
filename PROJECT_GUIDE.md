@@ -95,6 +95,7 @@ sam deploy --resolve-image-repos
 - `RepoName`: GitHubリポジトリ名
 - `McpApiKey`: ローカル接続用のAPI Key
 - `LocalUserId`: ローカル接続時に使用するユーザーID
+- `AdditionalCognitoClientIds`（任意）: スタック外で作成した Cognito アプリクライアント（特定の MCP コネクタ用など）のID。カンマ区切り。ここに含まれないクライアントが発行したトークンは拒否されます
 
 ## 6. クライアント設定とユーザー管理 (Client Setup & User Management)
 
@@ -127,6 +128,27 @@ sam deploy --resolve-image-repos
 | (Cognito User ID) | `github_pat_...` |
 
 ※ ローカル開発 (`make up`) の場合は、`scripts/seed_local_db.py` が `.env` の内容を元に自動的にこのレコードを作成してくれます。
+
+**PAT の取り扱い**:
+- **Fine-grained PAT** を使い、対象を Mind Kernel のリポジトリ（`RepoOwner`/`RepoName`）1つに限定してください。Classic PAT の `repo` スコープは全リポジトリに及ぶため避けます。
+- 必要な権限は以下のみです（ファイル取得・ブランチ作成・コミット・PR 作成/取得・コミット履歴参照）。
+  - `Contents`: Read and write
+  - `Pull requests`: Read and write
+  - `Metadata`: Read-only（自動付与）
+- 有効期限を設定し、期限前に新しい PAT で `UserSecrets` の `githubToken` を上書きしてローテーションします。
+- PAT は `.env`（`.gitignore` 済み）と DynamoDB にのみ置き、コミットやログに含めないでください。サーバーはトークンをログに出力しません。
+
+### 6.3. Cognito User Creation
+User Pool はセルフサインアップを無効化しています（`AllowAdminCreateUserOnly: true`）。Cognito ユーザーは管理者が作成してください。
+
+```bash
+aws cognito-idp admin-create-user \
+  --user-pool-id <CognitoUserPoolId> \
+  --username <email> \
+  --user-attributes Name=email,Value=<email> Name=email_verified,Value=true
+```
+
+一時パスワードがメールで届き、初回ログイン時に変更を求められます。作成されたユーザーの `sub` を `userId` として `UserSecrets` に登録します。
 
 ---
 *Created at: 2025-12-21*

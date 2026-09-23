@@ -32,7 +32,7 @@
 
 2. **環境設定**
    `.env` ファイルを編集し、以下の項目を設定してください:
-   - `GITHUB_TOKEN`: GitHub Personal Access Token
+   - `GITHUB_TOKEN`: GitHub Personal Access Token（対象リポジトリに限定した Fine-grained PAT を推奨。必要な権限は [PROJECT_GUIDE.md](./PROJECT_GUIDE.md#62-user-registration-dynamodb) を参照）
    - `REPO_OWNER`, `REPO_NAME`: 対象のリポジトリ
    - `USER_ID`: シードデータとして使用するユーザーID (デフォルトはUUIDが既に設定されています)
 
