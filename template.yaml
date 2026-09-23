@@ -45,6 +45,10 @@ Resources:
     Type: AWS::Cognito::UserPool
     Properties:
       UserPoolName: !Sub ${AWS::StackName}-user-pool
+      # Personal server: users are created by the admin only (no self sign-up
+      # from the hosted UI, whose domain is derivable from the account ID).
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
       AutoVerifiedAttributes:
         - email
       Schema:
