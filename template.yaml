@@ -113,6 +113,9 @@ Resources:
         - arm64
       MemorySize: 256
       Timeout: 180 # Longer timeout for SSE
+      # Cost ceiling for the public Function URL: requests beyond this many
+      # concurrent executions are throttled (429) instead of billed.
+      ReservedConcurrentExecutions: 5
       FunctionUrlConfig:
         AuthType: NONE
         InvokeMode: RESPONSE_STREAM
