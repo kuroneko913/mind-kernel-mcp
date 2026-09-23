@@ -50,9 +50,9 @@ Mind Kernel を構成する4つの主要モジュールに対し、**読み取�
 graph LR
     User[User / LLM Client] -- Stdio/SSE --> Bridge[MCP Bridge / Local Script]
     Bridge -- Invoke/HTTP --> Server["MCP Server (Lambda)"]
-    Server -- Oauth/API Key --> Auth[Authentication]
-    Server -- Read/Write --> GitHub[GitHub API (Private Repo)]
-    Server -- Secrets --> DynamoDB[UserSecrets (Tokens)]
+    Server -- OAuth/API Key --> Auth[Authentication]
+    Server -- Read/Write --> GitHub["GitHub API (Private Repo)"]
+    Server -- Secrets --> DynamoDB["UserSecrets (Tokens)"]
 ```
 
 ### 4.1. Authentication Strategy (認証戦略)
