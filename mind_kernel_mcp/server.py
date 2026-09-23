@@ -56,15 +56,27 @@ class ServerlessMcpServer:
             )
         return f"https://cognito-idp.{region}.amazonaws.com/{user_pool_id}"
 
+    @staticmethod
+    def _request_origin(request: Request) -> str:
+        """Client address for auth failure logs.
+
+        Lambda Function URL sets x-forwarded-for and callers cannot strip it,
+        so its absence means the request arrived by direct Invoke (IAM).
+        """
+        return request.headers.get("x-forwarded-for") or "direct-invoke"
+
     def verify_token(self, request: Request) -> Optional[str]:
         auth_header = request.headers.get("Authorization")
         api_key_header = request.headers.get("X-API-Key")
         env_api_key = os.environ.get("MCP_API_KEY")
 
         # 1. API Key Auth
-        if env_api_key and api_key_header and hmac.compare_digest(api_key_header, env_api_key):
-            logger.debug("Authenticated via X-API-Key")
-            return os.environ.get("LOCAL_USER_ID")
+        if api_key_header:
+            if env_api_key and hmac.compare_digest(api_key_header, env_api_key):
+                logger.debug("Authenticated via X-API-Key")
+                return os.environ.get("LOCAL_USER_ID")
+            # Never log the presented key itself - only where it came from.
+            logger.warning("Rejected X-API-Key from %s", self._request_origin(request))
         
         # 2. JWT Auth (Cognito)
         if not auth_header or not auth_header.startswith("Bearer "):
@@ -109,7 +121,11 @@ class ServerlessMcpServer:
 
             return data.get("sub")
         except Exception as e:
-            logger.warning("Token verification failed: %s", type(e).__name__)
+            logger.warning(
+                "Token verification failed: %s from %s",
+                type(e).__name__,
+                self._request_origin(request),
+            )
             return None
 
     async def handle_sse(self, request: Request):
