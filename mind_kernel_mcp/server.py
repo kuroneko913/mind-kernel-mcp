@@ -110,12 +110,20 @@ class ServerlessMcpServer:
                 logger.warning("Rejected token with unexpected token_use")
                 return None
 
-            expected = os.environ.get("COGNITO_CLIENT_ID")
-            if not expected:
+            # Comma-separated: the stack's own client plus any extra clients
+            # (e.g. one created for a specific MCP connector).
+            allowed = [
+                c.strip()
+                for c in os.environ.get("COGNITO_CLIENT_ID", "").split(",")
+                if c.strip()
+            ]
+            if not allowed:
                 logger.warning(
                     "COGNITO_CLIENT_ID is not set - accepting any client of this user pool"
                 )
-            elif not hmac.compare_digest(str(client_id or ""), expected):
+            elif not any(
+                hmac.compare_digest(str(client_id or ""), c) for c in allowed
+            ):
                 logger.warning("Rejected token issued to an unexpected client")
                 return None
 

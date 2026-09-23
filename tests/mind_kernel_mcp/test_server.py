@@ -156,11 +156,11 @@ async def test_resources_read(server):
 @patch("mind_kernel_mcp.server.jwt.decode")
 async def test_jwt_auth(mock_decode, mock_jwks_client, server):
     # Setup mock JWT decoding
-    mock_decode.return_value = {"sub": "cognito-user-456"}
+    mock_decode.return_value = {"sub": "cognito-user-456", "token_use": "access", "client_id": "any-client"}
     mock_jwks_instance = MagicMock()
     mock_jwks_instance.get_signing_key_from_jwt.return_value.key = "fake-key"
     mock_jwks_client.return_value = mock_jwks_instance
-    
+
     req = make_mock_request(
         headers={"Authorization": "Bearer fake.jwt.token"},
         body={
@@ -170,14 +170,35 @@ async def test_jwt_auth(mock_decode, mock_jwks_client, server):
             "params": {}
         }
     )
-    
+
     response = await server.handle_rpc(req)
     body = json.loads(response.body)
-    
+
     assert response.status_code == 200
     assert "error" not in body
     assert "tools" in body["result"]
     mock_decode.assert_called_once()
+
+def _jwt_request():
+    return make_mock_request(headers={"Authorization": "Bearer fake.jwt.token"})
+
+@pytest.mark.parametrize("claims, expected", [
+    ({"sub": "u1", "token_use": "access", "client_id": "stack-client"}, "u1"),
+    ({"sub": "u1", "token_use": "access", "client_id": "connector-client"}, "u1"),
+    ({"sub": "u1", "token_use": "id", "aud": "connector-client"}, "u1"),
+    ({"sub": "u1", "token_use": "access", "client_id": "other-client"}, None),
+    ({"sub": "u1", "token_use": "access"}, None),
+    ({"sub": "u1", "client_id": "stack-client"}, None),
+])
+@patch.dict(os.environ, {
+    "COGNITO_USER_POOL_ID": "fake-pool-id",
+    "COGNITO_CLIENT_ID": "stack-client, connector-client",
+})
+@patch("mind_kernel_mcp.server.PyJWKClient")
+@patch("mind_kernel_mcp.server.jwt.decode")
+def test_jwt_client_allowlist(mock_decode, mock_jwks_client, server, claims, expected):
+    mock_decode.return_value = claims
+    assert server.verify_token(_jwt_request()) == expected
 
 @pytest.mark.anyio
 @patch.dict(os.environ, {"MCP_API_KEY": "test-key", "LOCAL_USER_ID": "admin-123"})

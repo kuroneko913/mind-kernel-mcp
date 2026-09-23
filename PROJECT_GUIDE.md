@@ -95,6 +95,7 @@ sam deploy --resolve-image-repos
 - `RepoName`: GitHubリポジトリ名
 - `McpApiKey`: ローカル接続用のAPI Key
 - `LocalUserId`: ローカル接続時に使用するユーザーID
+- `AdditionalCognitoClientIds`（任意）: スタック外で作成した Cognito アプリクライアント（特定の MCP コネクタ用など）のID。カンマ区切り。ここに含まれないクライアントが発行したトークンは拒否されます
 
 ## 6. クライアント設定とユーザー管理 (Client Setup & User Management)
 
