@@ -44,6 +44,9 @@ class ServerlessMcpServer:
         self.prompt_handlers[definition["name"]] = handler
 
     def _get_jwks_url(self):
+        return f"{self._get_issuer()}/.well-known/jwks.json"
+
+    def _get_issuer(self):
         region = os.environ.get("AWS_REGION", "ap-northeast-1")
         user_pool_id = os.environ.get("COGNITO_USER_POOL_ID")
         if not user_pool_id:
@@ -51,7 +54,16 @@ class ServerlessMcpServer:
                 "COGNITO_USER_POOL_ID environment variable is not set. "
                 "JWT authentication cannot be configured."
             )
-        return f"https://cognito-idp.{region}.amazonaws.com/{user_pool_id}/.well-known/jwks.json"
+        return f"https://cognito-idp.{region}.amazonaws.com/{user_pool_id}"
+
+    @staticmethod
+    def _request_origin(request: Request) -> str:
+        """Client address for auth failure logs.
+
+        Lambda Function URL sets x-forwarded-for and callers cannot strip it,
+        so its absence means the request arrived by direct Invoke (IAM).
+        """
+        return request.headers.get("x-forwarded-for") or "direct-invoke"
 
     def verify_token(self, request: Request) -> Optional[str]:
         auth_header = request.headers.get("Authorization")
@@ -59,9 +71,12 @@ class ServerlessMcpServer:
         env_api_key = os.environ.get("MCP_API_KEY")
 
         # 1. API Key Auth
-        if env_api_key and api_key_header and hmac.compare_digest(api_key_header, env_api_key):
-            logger.debug("Authenticated via X-API-Key")
-            return os.environ.get("LOCAL_USER_ID")
+        if api_key_header:
+            if env_api_key and hmac.compare_digest(api_key_header, env_api_key):
+                logger.debug("Authenticated via X-API-Key")
+                return os.environ.get("LOCAL_USER_ID")
+            # Never log the presented key itself - only where it came from.
+            logger.warning("Rejected X-API-Key from %s", self._request_origin(request))
         
         # 2. JWT Auth (Cognito)
         if not auth_header or not auth_header.startswith("Bearer "):
@@ -80,19 +95,41 @@ class ServerlessMcpServer:
                 token,
                 signing_key.key,
                 algorithms=["RS256"],
-                options={"verify_aud": False} 
+                issuer=self._get_issuer(),
+                # Cognito access tokens carry no "aud" claim - the client is
+                # identified by "client_id" instead. Verified manually below.
+                options={"verify_aud": False},
             )
+
+            token_use = data.get("token_use")
+            if token_use == "access":
+                client_id = data.get("client_id")
+            elif token_use == "id":
+                client_id = data.get("aud")
+            else:
+                logger.warning("Rejected token with unexpected token_use")
+                return None
+
+            expected = os.environ.get("COGNITO_CLIENT_ID")
+            if not expected:
+                logger.warning(
+                    "COGNITO_CLIENT_ID is not set - accepting any client of this user pool"
+                )
+            elif not hmac.compare_digest(str(client_id or ""), expected):
+                logger.warning("Rejected token issued to an unexpected client")
+                return None
+
             return data.get("sub")
         except Exception as e:
-            logger.warning("Token verification failed: %s", type(e).__name__)
+            logger.warning(
+                "Token verification failed: %s from %s",
+                type(e).__name__,
+                self._request_origin(request),
+            )
             return None
 
     async def handle_sse(self, request: Request):
         user_id = self.verify_token(request)
-        if not user_id and os.environ.get("ALLOW_DEBUG_AUTH") == "true":
-            user_id = os.environ.get("DEBUG_USER_ID")
-            if user_id:
-                logger.debug("Using fallback userId in SSE")
 
         if not user_id:
             return JSONResponse({"error": "Unauthorized"}, status_code=401)
@@ -228,11 +265,6 @@ class ServerlessMcpServer:
 
         try:
             user_id = self.verify_token(request)
-            
-            if not user_id and os.environ.get("ALLOW_DEBUG_AUTH") == "true":
-                user_id = os.environ.get("DEBUG_USER_ID")
-                if user_id:
-                    logger.debug("Using fallback userId")
 
             PUBLIC_METHODS = ["initialize", "ping", "notifications/initialized"]
             if not user_id and method not in PUBLIC_METHODS:

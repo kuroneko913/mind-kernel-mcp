@@ -114,6 +114,7 @@ Resources:
           MCP_API_KEY: !Ref McpApiKey
           LOCAL_USER_ID: !Ref LocalUserId
           COGNITO_USER_POOL_ID: !Ref MindKernelUserPool
+          COGNITO_CLIENT_ID: !Ref MindKernelUserPoolClient
           OPENAI_VERIFICATION_TOKEN: !Ref OpenAIVerificationToken
       Policies:
         - DynamoDBCrudPolicy:
