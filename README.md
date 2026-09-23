@@ -1,10 +1,26 @@
 # mind-kernel-mcp
 
-Mind Kernel プライベートリポジトリから `core.json` を取得するための MCP (Model Context Protocol) サーバーです。
-LocalStack 上の Lambda + DynamoDB で動作するサーバーレスアーキテクチャをローカルで完全に再現しています。
-MCPクライアントはローカルのブリッジスクリプトを経由して Lambda を呼び出します。
+個人の思考や価値観を言語化した **Mind Kernel** を、Claude や ChatGPT から安全に参照・更新するための MCP (Model Context Protocol) サーバーです。
+
+- **リモート MCP サーバー** — AWS Lambda 上で動作し、MCP クライアントから HTTP で直接接続できます
+- **OAuth 2.0 認証** — Amazon Cognito による認可と JWT 検証。`/.well-known/oauth-protected-resource` を実装しています
+- **SSE ストリーミング** — Lambda Function URL のレスポンスストリーミング (`InvokeMode: RESPONSE_STREAM`) を利用。API Gateway ではレスポンスストリーミングができないため、この構成を選んでいます
+- **更新は必ず Pull Request 経由** — AI による変更提案は PR として作成され、マージ権限は常に人間側にあります
+- **ローカル完全再現** — LocalStack 上に Lambda + DynamoDB を再現し、AWS にデプロイせずに開発できます
+
+カーネルは `identity` / `meta` / `patterns` / `backlog` の4モジュールで構成され、プライベートリポジトリ上の JSON として管理されます。
 
 > **詳細ドキュメント**: プロジェクトの設計思想やアーキテクチャについては [PROJECT_GUIDE.md](./PROJECT_GUIDE.md) を参照してください。
+
+## アーキテクチャ
+
+| | 本番 (AWS) | ローカル開発 |
+| --- | --- | --- |
+| 実行環境 | Lambda (arm64 コンテナイメージ) | Docker + LocalStack |
+| エンドポイント | Lambda Function URL (`RESPONSE_STREAM`) | stdio ブリッジスクリプト |
+| 認証 | Cognito OAuth 2.0 / JWT 検証 | API Key |
+| データストア | DynamoDB (ユーザー別クレデンシャル) | LocalStack DynamoDB |
+| デプロイ | AWS SAM | `make up` |
 
 ## セットアップ
 
