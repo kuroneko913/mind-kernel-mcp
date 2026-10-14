@@ -104,10 +104,6 @@ make inspector
 ```
 実行すると URL が表示されますので、ブラウザでアクセスしてツールをテストしてください。
 
-## 使用方法
-このサーバーは以下のツールを公開しています: `fetch_mind_kernel_core`。
-引数: `{"userId": ""}`。
-
 ## プロジェクト構造
 - `mind_kernel_mcp/`: ソースコード。
   - `services/`: DynamoDB および GitHub サービス。
